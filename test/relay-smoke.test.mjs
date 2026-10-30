@@ -29,7 +29,7 @@ const sse = text => new Response(text, { headers: { 'content-type': 'text/event-
 test('read-only probe exercises plugin hooks and never sends generation requests', async () => {
   const requests = upstream()
   const result = await probeRelay(options)
-  expect(result).toEqual({ pluginModels: [model], usage: { ok: true, windows: 1 }, generation: 'skipped' })
+  expect(result).toEqual({ pluginModels: [model], usage: { ok: true, windows: 0 }, generation: 'skipped' })
   expect(requests.map(request => request.url)).toEqual([baseURL + '/models', baseURL + '/usage'])
 })
 

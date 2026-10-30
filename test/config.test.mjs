@@ -11,11 +11,11 @@ test('unset host options preserve the package traffic default', async () => {
     usage: { today: { cost: 1, requests: 2, total_tokens: 3 } } })
   try {
     const getAuth = async () => ({ type: 'api', key: 'synthetic-key', metadata: { baseURL: 'https://test.example/v1' } })
-    expect((await plugin.auth.usage(getAuth)).windows[1].display).toBe('1 USD')
+    expect((await plugin.auth.usage(getAuth)).windows[0].display).toBe('$1.00')
     visible = true
-    expect((await plugin.auth.usage(getAuth)).windows[1].display).toContain('3 tokens')
+    expect((await plugin.auth.usage(getAuth)).windows[0].display).toContain('3 tok')
     visible = false
-    expect((await plugin.auth.usage(getAuth)).windows[1].display).toBe('1 USD')
+    expect((await plugin.auth.usage(getAuth)).windows[0].display).toBe('$1.00')
     visible = 'invalid'
     expect((await plugin.auth.usage(getAuth)).error).toBe('showTraffic must be boolean.')
   } finally { globalThis.fetch = originalFetch }

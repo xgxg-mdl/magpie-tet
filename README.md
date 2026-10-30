@@ -21,7 +21,7 @@ magpie plugin login tet
 
 在 **TET** 供应商中填写 **API base URL** 和 **API Key**，随后选择 `tet/<模型 ID>`。
 
-地址需包含服务实际的 API 前缀，例如 `https://relay.example/v1`，插件不自动补 `/v1`。建议使用 HTTPS；HTTP 会明文传输 Key 和请求内容。
+填写站点地址（如 `https://relay.example`）时自动使用 `/v1`；也可填写完整 API 地址，已有 `/v1` 或自定义路径会保留。建议使用 HTTPS；HTTP 会明文传输 Key 和请求内容。
 
 插件通过 TET 中转站的 `/models` 获取模型、`/responses` 转发请求、`/usage` 查询余额与用量。目前支持 GPT-5/6 文本模型，不支持 Claude/Gemini 专用协议、图片生成、音频或实时模型。
 

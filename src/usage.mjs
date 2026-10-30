@@ -1,6 +1,15 @@
 const finite = value => typeof value === 'number' && Number.isFinite(value)
-const money = (value, unit) => value.toLocaleString('en-US', { maximumFractionDigits: 4 }) + ' ' + unit
+/** 只格式化展示值；不足一分的非零金额用边界表示，避免误报为零。 */
+function money(value, unit) {
+  const small = value !== 0 && Math.abs(value) < 0.01
+  const amount = small ? (value < 0 ? -0.01 : 0.01) : value === 0 ? 0 : value
+  const formatted = unit === 'USD'
+    ? amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+    : amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + unit
+  return (small ? (value < 0 ? '>' : '<') : '') + formatted
+}
 const spans = { '5h': 18000, '1d': 86400, '7d': 604800 }
+const windowNames = { '5h': '5 hours', '1d': '1 day', '7d': '7 days' }
 const timestamp = value => typeof value === 'string' && Number.isFinite(Date.parse(value)) ? value : undefined
 
 /** 账户钱包与密钥消费属于不同范围；只有上游提供真实限额才生成可影响路由的窗口。 */
@@ -12,8 +21,11 @@ export function mapUsage(data, { showTraffic = true } = {}) {
   const result = { plan: typeof data.planName === 'string' && data.planName ? data.planName : 'TET', windows: [] }
   const unit = typeof data.unit === 'string' ? data.unit : 'USD'
   const sub = data.subscription && typeof data.subscription === 'object' && !Array.isArray(data.subscription) ? data.subscription : undefined
-  const periods = [['daily', 'Daily', 86400], ['weekly', 'Weekly', 604800], ['monthly', 'Monthly', undefined]]
+  const periods = [['daily', '1 day', 86400], ['weekly', 'Weekly', 604800], ['monthly', 'Monthly', undefined]]
   const hasSubscription = sub && (timestamp(sub.expires_at) || periods.some(([period]) => finite(sub[period + '_limit_usd']) && sub[period + '_limit_usd'] > 0))
+  /** 钱包属于账户，额度属于当前密钥或订阅；并存时不能互相遮蔽或相加。 */
+  const hasWallet = finite(data.balance)
+  if (hasWallet) result.balance = money(data.balance, unit)
   const addLimit = (name, used, limit, extra = {}) => {
     if (!finite(limit) || limit <= 0) return
     /** 宿主会把缺少 amount 的数值窗口归零，未知用量必须用纯展示窗口表达。 */
@@ -27,8 +39,9 @@ export function mapUsage(data, { showTraffic = true } = {}) {
     addLimit('API key quota', data.quota?.used, data.quota?.limit)
     for (const window of Array.isArray(data.rate_limits) ? data.rate_limits : []) {
       if (!window || typeof window.window !== 'string') continue
-      addLimit(window.window, window.used, window.limit, {
-        ...(spans[window.window] ? { span: spans[window.window] } : {}),
+      const name = Object.hasOwn(windowNames, window.window) ? windowNames[window.window] : window.window
+      addLimit(name, window.used, window.limit, {
+        ...(Object.hasOwn(spans, window.window) ? { span: spans[window.window] } : {}),
         ...(timestamp(window.reset_at) ? { resetsAt: window.reset_at } : {}),
       })
     }
@@ -42,10 +55,7 @@ export function mapUsage(data, { showTraffic = true } = {}) {
       })
     }
     if (timestamp(sub.expires_at)) result.until = sub.expires_at
-  } else if (finite(data.balance)) {
-    result.balance = money(data.balance, unit)
-    result.windows.push({ name: 'Wallet', balance: data.balance, unit })
-  } else {
+  } else if (!hasWallet) {
     result.error = 'TET did not report a wallet or an active subscription.'
   }
   /** 密钥与订阅分别约束可用性，较晚的到期时间不能掩盖另一项已到期。 */
@@ -57,15 +67,15 @@ export function mapUsage(data, { showTraffic = true } = {}) {
     const cost = finite(stats?.actual_cost) ? stats.actual_cost : stats?.cost
     if (!finite(cost)) continue
     const details = [money(cost, unit)]
-    if (showTraffic && finite(stats.requests)) details.push(stats.requests.toLocaleString('en-US') + ' requests')
-    if (showTraffic && finite(stats.total_tokens)) details.push(stats.total_tokens.toLocaleString('en-US') + ' tokens')
+    if (showTraffic && finite(stats.requests)) details.push(stats.requests.toLocaleString('en-US') + ' req')
+    if (showTraffic && finite(stats.total_tokens)) details.push(stats.total_tokens.toLocaleString('en-US') + ' tok')
     result.windows.push({ name, display: details.join(' · '), aside: true })
   }
   if (showTraffic && (finite(data.usage?.rpm) || finite(data.usage?.tpm))) {
     const parts = []
     if (finite(data.usage.rpm)) parts.push(data.usage.rpm.toLocaleString('en-US') + ' RPM')
     if (finite(data.usage.tpm)) parts.push(data.usage.tpm.toLocaleString('en-US') + ' TPM')
-    result.windows.push({ name: 'Traffic', display: parts.join(' · '), aside: true })
+    result.windows.push({ name: 'Usage', display: parts.join(' · '), aside: true })
   }
   return result
 }
