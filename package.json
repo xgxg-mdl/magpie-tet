@@ -1,0 +1,46 @@
+{
+  "name": "TET",
+  "version": "0.1.0",
+  "description": "TET provider for Magpie: Responses models, wallet balance and API key usage",
+  "type": "module",
+  "main": "./index.mjs",
+  "files": [
+    "index.mjs",
+    "src",
+    "assets/logo.svg",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "bun test",
+    "check": "node scripts/check-package.mjs",
+    "sync-icon": "node scripts/sync-icon.mjs",
+    "test:host": "bun scripts/host-smoke.mjs",
+    "test:relay": "bun scripts/relay-smoke.mjs",
+    "prepack": "node scripts/check-package.mjs"
+  },
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "magpie",
+    "magpie-plugin"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xgxg-mdl/magpie-tet.git"
+  },
+  "license": "MIT",
+  "exports": "./index.mjs",
+  "engines": {
+    "node": ">=22"
+  },
+  "magpie": {
+    "options": {
+      "queryTimeoutMs": 15000,
+      "showTraffic": true,
+      "excludeModels": [],
+      "modelOverrides": {}
+    },
+    "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IlRFVCI+PHJlY3QgeD0iNCIgeT0iNCIgd2lkdGg9IjEyMCIgaGVpZ2h0PSIxMjAiIHJ4PSIzMCIgZmlsbD0iIzE3MmIzOCIvPjxwYXRoIGQ9Ik0yNiAzMUg4N1YyMEwxMDkgNDJMODcgNjRWNTNINzJWOTlINTZWNTNIMjZaIiBmaWxsPSIjNmVlN2MyIi8+PHBhdGggZD0iTTEwMCA3OUg4NVY3MEw2OSA4Nkw4NSAxMDJWOTNIMTAwWiIgZmlsbD0iI2Y0ZmFmOCIvPjwvc3ZnPg=="
+  }
+}

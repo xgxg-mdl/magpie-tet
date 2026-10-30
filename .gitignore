@@ -1,0 +1,7 @@
+node_modules/
+.env
+.env.*
+*.log
+coverage/
+design/**/preview.svg.png
+docs/local/
