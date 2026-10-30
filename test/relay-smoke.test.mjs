@@ -133,7 +133,7 @@ test('failed HTTP generation hides the upstream body and releases it', async () 
   let canceled = false
   upstream(() => new Response(new ReadableStream({ cancel() { canceled = true } }), { status: 503 }))
   const error = await probeRelay({ ...options, generate: true, model }).catch(error => error)
-  expect(error.message).toBe('TET Responses returned HTTP 503.')
+  expect(error.message).toBe('TET Responses returned [upstream] HTTP 503.')
   expect(canceled).toBe(true)
 })
 
