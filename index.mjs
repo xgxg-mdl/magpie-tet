@@ -3,6 +3,7 @@ import { NAME, PROVIDER, SDK, settings, apiBase, accountBase } from './src/confi
 import { credentials, forward, createQueries } from './src/transport.mjs'
 import { discoverModels, loadCatalog } from './src/models.mjs'
 import { mapUsage } from './src/usage.mjs'
+import { safeDetails } from './src/errors.mjs'
 
 const icon = 'data:image/svg+xml;base64,' + readFileSync(new URL('./assets/logo.svg', import.meta.url)).toString('base64')
 
@@ -52,7 +53,7 @@ export const TetPlugin = async (input = {}, options = {}) => {
           const payload = await query('/usage', auth, opts.queryTimeoutMs, accountBase(auth, opts))
           return mapUsage(payload, opts)
         } catch (error) {
-          return { error: error.message, windows: [], ...(error.signIn ? { signIn: error.signIn } : {}) }
+          return { error: error.message, windows: [], ...safeDetails(error), ...(error.signIn ? { signIn: error.signIn } : {}) }
         }
       },
     },

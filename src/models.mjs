@@ -11,7 +11,8 @@ export function discoverModels(payload, provider, options) {
       const existing = Object.hasOwn(provider.models ?? {}, model.id) ? provider.models[model.id] : {}
       const override = Object.hasOwn(options.modelOverrides, model.id) ? options.modelOverrides[model.id] : {}
       const capabilities = existing?.capabilities ?? {}
-      const reasoning = override.reasoning ?? capabilities.reasoning ?? true
+      /** 目录名称不是能力证据；显式档位可开启推理，已有禁用声明仍优先。 */
+      const reasoning = override.reasoning ?? capabilities.reasoning ?? Boolean(override.reasoningLevels?.length)
       return [model.id, {
         ...existing,
         id: model.id, providerID: PROVIDER, status: 'active',
@@ -20,9 +21,9 @@ export function discoverModels(payload, provider, options) {
         limit: override.limit ?? existing?.limit ?? { context: 0, output: 0 },
         capabilities: {
           ...capabilities,
-          temperature: override.temperature ?? capabilities.temperature ?? true,
+          temperature: override.temperature ?? capabilities.temperature ?? false,
           reasoning,
-          toolcall: override.toolCall ?? capabilities.toolcall ?? true,
+          toolcall: override.toolCall ?? capabilities.toolcall ?? false,
           attachment: override.imageInput ?? capabilities.input?.image ?? false,
           input: { ...capabilities.input, text: true, image: override.imageInput ?? capabilities.input?.image ?? false },
           output: { text: true, image: false, audio: false, video: false, pdf: false },

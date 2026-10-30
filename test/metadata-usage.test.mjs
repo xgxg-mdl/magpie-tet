@@ -104,5 +104,5 @@ test('temperature override takes precedence without changing inherited or defaul
   expect(model({ capabilities: { temperature: true } }, { temperature: false }).capabilities.temperature).toBe(false)
   expect(model({ capabilities: { temperature: false } }, { temperature: true }).capabilities.temperature).toBe(true)
   expect(model({ capabilities: { temperature: false } }).capabilities.temperature).toBe(false)
-  expect(model().capabilities.temperature).toBe(true)
+  expect(model().capabilities.temperature).toBe(false)
 })

@@ -22,7 +22,7 @@ await writeFile(wrapper, [
   ' if (url.endsWith("/usage") && slot === "C") return Response.json({isValid:true,mode:"quota_limited",balance:0.0001,quota:{used:12.3456,limit:100},rate_limits:[{window:"1d",limit:10}]});',
   ' if (url.endsWith("/usage") && slot === "D") return Response.json({isValid:true,planName:"Pro",balance:5.6789,subscription:{daily_usage_usd:0.012345,daily_limit_usd:10,expires_at:"2099-01-01T00:00:00Z"}});',
   ' if (url.endsWith("/usage")) return Response.json({isValid:true,mode:"unrestricted",balance:slot === "B" ? 56.78 : 12.34,usage:{today:{actual_cost:slot === "B" ? 2 : 1,requests:2,total_tokens:50},rpm:3}});',
-  ' if (url.endsWith("/responses")) return Response.json({accountMarker:slot});',
+  ' if (url.endsWith("/responses")) return Response.json({accountMarker:slot,received:JSON.parse(init.body || "{}")});',
   ' throw new Error("Unexpected test endpoint");',
   '};',
   'await import(' + JSON.stringify(pathToFileURL(resolve(process.argv[2])).href) + ');',
@@ -93,6 +93,20 @@ try {
     return JSON.parse(Buffer.concat(response.events.filter(e => e.event === 'chunk').map(e => Buffer.from(e.data, 'base64'))).toString()).accountMarker
   }
   assert.deepEqual(await Promise.all([first, second].map(({ account }) => forwarded(account))), ['A', 'B'])
+  /** 验证宿主边界不丢显式历史或工具结果；不冒充上层 SDK 的请求构造测试。 */
+  const history = [
+    { role: 'user', content: 'Remember number 7.' },
+    { role: 'assistant', content: 'OK' },
+    { role: 'user', content: 'Report the number.' },
+    { type: 'function_call', name: 'report_number', arguments: '{"value":7}', call_id: 'synthetic-call' },
+    { type: 'function_call_output', call_id: 'synthetic-call', output: '{"accepted":true}' },
+  ]
+  const multiTurn = { model: 'gpt-6.1-sol', store: false, input: history }
+  const multiResponse = await rpc('fetch', { provider: 'tet', account: first.account, npm: '@ai-sdk/openai',
+    model: multiTurn.model, url: 'https://first.example/v1/responses', body: Buffer.from(JSON.stringify(multiTurn)).toString('base64') })
+  const received = JSON.parse(Buffer.concat(multiResponse.events.filter(e => e.event === 'chunk').map(e => Buffer.from(e.data, 'base64'))).toString()).received
+  assert.deepEqual(received, multiTurn)
+  assert.equal(received.previous_response_id, undefined)
   await rpc('apiKey', { provider: 'tet', method: 0, account: first.account, key: 'synthetic-key-C', inputs: { baseURL: 'https://first.example/v1' } })
   assert.deepEqual(await Promise.all([first, second].map(({ account }) => forwarded(account))), ['C', 'B'])
   const quotaUsage = await rpc('usage', { provider: 'tet', account: first.account })

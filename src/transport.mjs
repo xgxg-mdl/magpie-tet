@@ -1,4 +1,5 @@
 import { apiBase } from './config.mjs'
+import { httpDetails } from './errors.mjs'
 
 export function credentials(auth) {
   if (auth?.type !== 'api' || typeof auth.key !== 'string' || !auth.key.trim()) {
@@ -22,31 +23,36 @@ export async function query(path, auth, timeoutMs, baseURL) {
     })
   } catch (error) {
     if (error.signIn) throw error
-    throw new Error('TET ' + endpoint + ' query failed or timed out. Retry later.')
+    throw Object.assign(new Error('TET ' + endpoint + ' query failed or timed out. Retry later.'),
+      { category: ['TimeoutError', 'AbortError'].includes(error.name) ? 'timeout' : 'network' })
   }
   if (!response.ok) {
     try { await response.body?.cancel() } catch {}
     if (response.status === 401) {
-      throw Object.assign(new Error('TET rejected the API key. Sign in again.'), { signIn: 'expired' })
+      throw Object.assign(new Error('TET rejected the API key. Sign in again.'), { ...httpDetails(response), signIn: 'expired' })
     }
-    throw new Error('TET ' + endpoint + ' returned HTTP ' + response.status + '. Retry later.')
+    throw Object.assign(new Error('TET ' + endpoint + ' returned HTTP ' + response.status + '. Retry later.'), httpDetails(response))
   }
   const reader = response.body?.getReader()
-  if (!reader) throw new Error('TET ' + endpoint + ' returned an empty response.')
+  if (!reader) throw Object.assign(new Error('TET ' + endpoint + ' returned an empty response.'), { category: 'protocol' })
   const chunks = []
   let size = 0
+  let category = 'network'
   try {
     for (;;) {
       const { value, done } = await reader.read()
       if (done) break
       size += value.byteLength
-      if (size > 4 * 1024 * 1024) throw new Error('Query response exceeds 4 MiB.')
+      if (size > 4 * 1024 * 1024) { category = 'protocol'; throw new Error('Query response exceeds 4 MiB.') }
       chunks.push(value)
     }
+    category = 'protocol'
     return JSON.parse(Buffer.concat(chunks).toString('utf8'))
-  } catch {
+  } catch (error) {
     await reader.cancel().catch(() => {})
-    throw new Error('TET ' + endpoint + ' returned invalid, oversized or interrupted JSON.')
+    /** 读取中断与完整正文格式错误分开，避免响应头返回后丢失超时分类。 */
+    if (['TimeoutError', 'AbortError'].includes(error.name)) category = 'timeout'
+    throw Object.assign(new Error('TET ' + endpoint + ' returned invalid, oversized or interrupted JSON.'), { category })
   } finally { reader.releaseLock() }
 }
 
