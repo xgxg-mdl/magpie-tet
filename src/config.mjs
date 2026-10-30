@@ -14,6 +14,8 @@ export function apiBase(rawBase) {
     base = new URL(rawBase.trim())
     if (base.username || base.password || base.search || base.hash) throw new Error()
   } catch { throw new Error('baseURL must be an HTTP(S) API base URL without credentials, query or fragment.') }
+  /** 纯站点地址使用标准入口；显式路径保留，避免破坏代理前缀。 */
+  if (!base.pathname.replace(/\/+$/, '')) base.pathname = '/v1'
   return base.href.replace(/\/+$/, '')
 }
 

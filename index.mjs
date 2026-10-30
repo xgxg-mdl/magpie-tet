@@ -25,9 +25,9 @@ export const TetPlugin = async (input = {}, options = {}) => {
     auth: {
       provider: PROVIDER, icon,
       single: false,
-      options: [{ key: 'show-traffic', label: 'Show traffic statistics', description: 'Show requests, tokens and current traffic alongside costs.', default: configured.showTraffic }],
+      options: [{ key: 'show-traffic', label: 'Show traffic statistics', description: 'Include request counts, tokens and RPM/TPM.', default: configured.showTraffic }],
       methods: [{ type: 'api', label: 'TET API key', placeholder: 'sk-…',
-        prompts: [{ type: 'text', key: 'baseURL', message: 'API base URL', placeholder: 'https://relay.example/v1',
+        prompts: [{ type: 'text', key: 'baseURL', message: 'API base URL', placeholder: 'https://relay.example',
           validate(value) { try { apiBase(value) } catch (error) { return error.message } } }],
         async authorize(inputs) {
           return { type: 'success', metadata: { baseURL: apiBase(inputs.baseURL) } }

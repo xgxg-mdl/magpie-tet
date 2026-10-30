@@ -20,11 +20,12 @@ const wallet = { isValid: true, mode: 'unrestricted', balance: 9999999443,
 
 test('wallet does not invent percentage; costs and traffic are informational', () => {
   const result = mapUsage(wallet)
-  expect(result.windows[0]).toEqual({ name: 'Wallet', balance: 9999999443, unit: 'USD' })
-  expect(result.windows[1]).toEqual({ name: 'Today', display: '0 USD · 0 requests · 50 tokens', aside: true })
-  expect(result.windows.at(-1)).toEqual({ name: 'Traffic', display: '14 RPM', aside: true })
+  expect(result.balance).toBe('$9,999,999,443.00')
+  expect(result.windows.some(w => w.balance !== undefined)).toBe(false)
+  expect(result.windows[0]).toEqual({ name: 'Today', display: '$0.00 · 0 req · 50 tok', aside: true })
+  expect(result.windows.at(-1)).toEqual({ name: 'Usage', display: '14 RPM', aside: true })
   expect(result.windows.every(w => w.used === undefined)).toBe(true)
-  expect(mapUsage(wallet, { showTraffic: false }).windows[1].display).toBe('0 USD')
+  expect(mapUsage(wallet, { showTraffic: false }).windows[0].display).toBe('$0.00')
   expect(mapUsage({ isValid: true }).error).toContain('did not report')
   expect(() => mapUsage({})).toThrow()
 })
@@ -42,7 +43,7 @@ test('quota enforces actual limits; missing usage stays unknown instead of becom
 test('subscription respects server resets and omits unconfigured limits and guessed month spans', () => {
   const result = mapUsage({ isValid: true, subscription: { daily_usage_usd: 4, daily_limit_usd: 10,
     daily_reset_at: '2030-11-01T00:00:00Z', weekly_limit_usd: null, monthly_usage_usd: 6, monthly_limit_usd: 100 } })
-  expect(result.windows[0]).toEqual({ name: 'Daily', amount: 4, limit: 10, unit: 'USD', span: 86400, resetsAt: '2030-11-01T00:00:00Z' })
+  expect(result.windows[0]).toEqual({ name: '1 day', amount: 4, limit: 10, unit: 'USD', span: 86400, resetsAt: '2030-11-01T00:00:00Z' })
   expect(result.windows[1].span).toBeUndefined()
   expect(result.windows[1].resetsAt).toBeUndefined()
 })
@@ -98,7 +99,7 @@ test('custom API base applies to config, paginated models, usage and forwarding'
   }
   const models = await plugin.provider.models({ models: {} }, { auth })
   expect(models['gpt-6.1-sol'].api.url).toBe(baseURL)
-  expect((await plugin.auth.usage(async () => auth)).windows[0].balance).toBe(9999999443)
+  expect((await plugin.auth.usage(async () => auth)).balance).toBe('$9,999,999,443.00')
   const loader = await plugin.auth.loader(async () => auth)
   expect(loader.baseURL).toBe(baseURL)
   expect((await loader.fetch(baseURL + '/responses/compact')).status).toBe(200)
@@ -112,7 +113,7 @@ test('API base validation rejects credentials and non-HTTP endpoints', () => {
     'https://relay.example/v1?token=test', 'https://relay.example/v1#fragment', '/v1']) {
     expect(() => settings({ baseURL })).toThrow()
   }
-  expect(settings({ baseURL: ' https://relay.example/ ' }).baseURL).toBe('https://relay.example')
+  expect(settings({ baseURL: ' https://relay.example/ ' }).baseURL).toBe('https://relay.example/v1')
 })
 test('unconfigured plugin loads but cannot query or forward without an explicit address', async () => {
   const plugin = await TetPlugin()
@@ -274,9 +275,9 @@ test('showTraffic toggle reads live host state without dropping structured model
     expect(id).toBe('tet'); expect(key).toBe('show-traffic'); return visible
   } } }, { modelOverrides: { 'gpt-6.1-sol': { name: 'Configured Sol' } } })
   globalThis.fetch = async url => Response.json(url.endsWith('/usage') ? wallet : catalog)
-  expect((await plugin.auth.usage(async () => auth)).windows[1].display).toBe('0 USD')
+  expect((await plugin.auth.usage(async () => auth)).windows[0].display).toBe('$0.00')
   visible = true
-  expect((await plugin.auth.usage(async () => auth)).windows[1].display).toContain('50 tokens')
+  expect((await plugin.auth.usage(async () => auth)).windows[0].display).toContain('50 tok')
   expect((await plugin.provider.models({ models: {} }, { auth }))['gpt-6.1-sol'].name).toBe('Configured Sol')
 })
 test('identity and icon agree and user provider settings survive', async () => {
