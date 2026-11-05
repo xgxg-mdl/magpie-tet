@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto'
 import { apiBase } from './config.mjs'
-import { mapManagementUsage } from './management-usage.mjs'
 
 const GROUPS = '/api/costs/llm-quotas'
 // 宿主用量调用只有 20 秒，辅助管理台请求不能耗尽该预算而丢掉正常钱包。
@@ -86,7 +85,17 @@ async function listGroups(url, token, timeoutMs, signal) {
       groups.set(item.id, {
         id: item.id,
         name: item.name.trim(),
-        accounts: item.accounts.map(account => ({ id: account.id })),
+        accounts: [
+          ...new Map(
+            item.accounts.map(account => [
+              account.id,
+              {
+                id: account.id,
+                name: typeof account.name === 'string' ? account.name.trim() : '',
+              },
+            ]),
+          ).values(),
+        ],
         capacity: item.capacity,
       })
     }
@@ -100,7 +109,6 @@ async function listGroups(url, token, timeoutMs, signal) {
 export function createManagement() {
   const signIns = new Map()
   const pending = new Map()
-  const pendingGroups = new Map()
   const fields = [
     { type: 'text', key: 'baseURL', message: '网关 API 地址', placeholder: 'https://relay.example' },
     { type: 'text', key: 'managementURL', message: '管理台地址', placeholder: 'https://console.example' },
@@ -136,11 +144,8 @@ export function createManagement() {
         if (typeof data.token !== 'string' || !data.token.trim() || /\s/.test(data.token)) {
           throw new Error('管理台登录数据异常')
         }
-        const groups = await listGroups(url, data.token, timeoutMs, signal)
-        if (!groups.length) throw new Error('没有可查看的额度分组')
-        if (!groups.some(group => group.accounts.length)) throw new Error('没有可查看的上游账号额度')
         const expiresAt = Number.isFinite(data.tokenExpiresAt) ? data.tokenExpiresAt * 1000 : undefined
-        return { url, token: data.token, groups, expiresAt }
+        return { url, token: data.token, expiresAt }
       })()
       signIns.set(id, { task, until: Date.now() + 5 * 60 * 1000 })
       task.catch(() => signIns.delete(id))
@@ -148,35 +153,18 @@ export function createManagement() {
     return signIns.get(id).task
   }
   return {
-    async ask(inputs, timeoutMs) {
+    async ask(inputs) {
       for (const field of fields) {
         if (!(field.key in inputs)) return field
         if (field.key === 'baseURL') apiBase(inputs.baseURL)
         if (field.key === 'managementURL') managementBase(inputs.managementURL)
       }
-      if ('managementGroup' in inputs) return null
-      const { groups } = await signIn(inputs, timeoutMs)
-      return {
-        type: 'select',
-        key: 'managementGroup',
-        message: '选择要展示额度的分组及上游账号',
-        options: groups.flatMap(group =>
-          group.accounts.map(account => ({
-            value: group.id + ':' + account.id,
-            label: group.name + ' · 上游 ' + account.id,
-          })),
-        ),
-      }
+      return null
     },
     async authorize(inputs, timeoutMs, signal) {
       const baseURL = apiBase(inputs.baseURL)
       try {
         const session = await signIn(inputs, timeoutMs, signal)
-        const group = session.groups.find(group =>
-          group.accounts.some(account => group.id + ':' + account.id === inputs.managementGroup),
-        )
-        const account = group?.accounts.find(account => group.id + ':' + account.id === inputs.managementGroup)
-        if (!group || !account) throw new Error('请选择有权查看的上游账号')
         return {
           type: 'success',
           metadata: {
@@ -185,9 +173,6 @@ export function createManagement() {
               url: session.url,
               token: session.token,
               expiresAt: session.expiresAt,
-              groupId: group.id,
-              accountId: account.id,
-              groupName: group.name,
               apiBaseURL: baseURL,
             },
             /** 宿主会合并所有输入；显式覆盖后 JSON 序列化才能移除密码等临时字段。 */
@@ -201,71 +186,76 @@ export function createManagement() {
         signIns.delete(flowKey(inputs))
       }
     },
-    async windows(auth, timeoutMs) {
+    async read(auth, timeoutMs) {
       const binding = auth?.metadata?.management
-      if (!binding) return []
+      if (!binding) return null
       try {
         if (
           !record(binding) ||
           typeof binding.token !== 'string' ||
           !binding.token ||
           /\s/.test(binding.token) ||
-          !Number.isSafeInteger(binding.groupId) ||
-          binding.groupId <= 0 ||
-          !Number.isSafeInteger(binding.accountId) ||
-          binding.accountId <= 0 ||
-          typeof binding.groupName !== 'string' ||
           binding.apiBaseURL !== apiBase(auth.metadata.baseURL)
         )
           throw new Error()
         if (Number.isFinite(binding.expiresAt) && binding.expiresAt <= Date.now()) {
-          const expired = '管理台登录已过期'
-          return mapManagementUsage({ usageError: expired, creditsError: expired, capacityError: expired })
+          return { error: '管理台登录已过期' }
         }
         const url = managementBase(binding.url)
         const usageTimeoutMs = Math.min(timeoutMs, USAGE_TIMEOUT_MS)
-        const groupScope = createHash('sha256')
+        const scope = createHash('sha256')
           .update(JSON.stringify([url, binding.token, usageTimeoutMs]))
           .digest('hex')
-        if (!pendingGroups.has(groupScope)) {
-          const task = listGroups(url, binding.token, usageTimeoutMs, AbortSignal.timeout(usageTimeoutMs)).finally(() =>
-            pendingGroups.delete(groupScope),
-          )
-          pendingGroups.set(groupScope, task)
-        }
-        const scope = createHash('sha256')
-          .update(JSON.stringify([url, binding.token, binding.accountId, usageTimeoutMs]))
-          .digest('hex')
         if (!pending.has(scope)) {
-          const task = Promise.allSettled(
-            ['usage', 'credits'].map(kind =>
-              request(url, GROUPS + '/' + binding.accountId + '/' + kind + (kind === 'usage' ? '?active=false' : ''), {
-                token: binding.token,
-                timeoutMs: usageTimeoutMs,
-              }),
-            ),
-          ).finally(() => pending.delete(scope))
+          const task = (async () => {
+            // 列表分页、排队和各上游查询共用总预算，避免多分组使刷新时间失控。
+            const signal = AbortSignal.timeout(usageTimeoutMs)
+            const groups = await listGroups(url, binding.token, usageTimeoutMs, signal)
+            const ids = [...new Set(groups.flatMap(group => group.accounts.map(account => account.id)))]
+            const readings = new Map()
+            let next = 0
+            const worker = async () => {
+              while (next < ids.length) {
+                const id = ids[next++]
+                const values = await Promise.allSettled(
+                  ['usage', 'credits'].map(kind => {
+                    if (signal.aborted) return Promise.reject(new Error('管理台查询超时或连接失败'))
+                    return request(url, GROUPS + '/' + id + '/' + kind + (kind === 'usage' ? '?active=false' : ''), {
+                      token: binding.token,
+                      timeoutMs: usageTimeoutMs,
+                      signal,
+                    })
+                  }),
+                )
+                readings.set(
+                  id,
+                  Object.fromEntries(
+                    values.map((result, index) => {
+                      const kind = index === 0 ? 'usage' : 'credits'
+                      return result.status === 'fulfilled'
+                        ? [kind, result.value]
+                        : [kind + 'Error', result.reason.message]
+                    }),
+                  ),
+                )
+              }
+            }
+            // 最多同时查询两个上游，每个上游两个只读接口。
+            await Promise.all(Array.from({ length: Math.min(2, ids.length) }, worker))
+            return {
+              groups: groups.map(group => ({
+                ...group,
+                accounts: group.accounts.map(account => ({ ...account, ...readings.get(account.id) })),
+              })),
+            }
+          })()
+            .catch(error => ({ error: error.message }))
+            .finally(() => pending.delete(scope))
           pending.set(scope, task)
         }
-        const [readings, groups] = await Promise.allSettled([pending.get(scope), pendingGroups.get(groupScope)])
-        if (readings.status === 'rejected') throw readings.reason
-        const [usage, credits] = readings.value
-        const group = groups.status === 'fulfilled' ? groups.value.find(item => item.id === binding.groupId) : null
-        return mapManagementUsage({
-          ...(usage.status === 'fulfilled' ? { usage: usage.value } : { usageError: usage.reason.message }),
-          ...(credits.status === 'fulfilled' ? { credits: credits.value } : { creditsError: credits.reason.message }),
-          ...(groups.status === 'fulfilled'
-            ? { capacity: group?.capacity ?? null, capacityError: group ? undefined : '分组已不可用' }
-            : { capacityError: groups.reason.message }),
-        })
+        return await pending.get(scope)
       } catch {
-        return [
-          {
-            name: '管理台额度',
-            display: '配置已变更，请重新登录',
-            aside: true,
-          },
-        ]
+        return { error: '配置已变更，请重新登录' }
       }
     },
   }

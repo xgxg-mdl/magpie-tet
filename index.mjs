@@ -98,13 +98,13 @@ export const TetPlugin = async (input = {}, options = {}) => {
           credentials(auth)
           const [keyUsage, groupUsage] = await Promise.allSettled([
             query('/usage', auth, opts.queryTimeoutMs, accountBase(auth, opts)),
-            management.windows(auth, opts.queryTimeoutMs),
+            management.read(auth, opts.queryTimeoutMs),
           ])
           if (keyUsage.status === 'rejected') throw keyUsage.reason
           const payload = keyUsage.value
           const usage = mapUsage(payload, opts)
           if (payload.isValid && groupUsage.status === 'fulfilled') {
-            return presentManagementUsage(usage, groupUsage.value, auth.metadata?.management)
+            return presentManagementUsage(usage, groupUsage.value)
           }
           return usage
         } catch (error) {

@@ -10,9 +10,7 @@ const usage = { fiveHour: { utilization: 0, resetsAt: soon }, sevenDay: { utiliz
 test('concurrency preserves zero, full and over-capacity snapshots as display-only progress', () => {
   for (const used of [0, 2, 10, 12]) {
     const windows = mapManagementUsage({ capacity: { used, max: 10 } }, context)
-    expect(windows.at(-1)).toEqual({ name: '分组并发', amount: used, limit: 10, used: used * 10, aside: true })
-    const shown = presentManagementUsage({ windows: [{ name: 'Today', aside: true }] }, windows)
-    expect(shown.windows.slice(0, 4).map(window => window.name)).toEqual(['5h', '7d', '分组并发', '可用重置'])
+    expect(windows.at(-1)).toEqual({ name: '并发', amount: used, limit: 10, used: used * 10, aside: true })
   }
 })
 
@@ -26,7 +24,7 @@ test('unknown and invalid concurrency never appear as available capacity', () =>
     { used: 1.5, max: 10 },
   ]) {
     expect(mapManagementUsage({ capacity }, context).at(-1)).toEqual({
-      name: '分组并发',
+      name: '并发',
       display: '暂无数据',
       aside: true,
     })
@@ -188,22 +186,31 @@ test('presentation pairs periods, costs and operational metrics without repeated
       { name: 'Usage', display: '1 RPM · 2 TPM', aside: true },
     ],
   }
-  const windows = mapManagementUsage(
-    { usage, credits: { availableResetCount: 1, resetCreditExpirations: [soon] } },
-    context,
-  )
-  const binding = { groupName: '海能发', accountId: 5 }
-  const shown = presentManagementUsage(normal, windows, binding)
-  expect(shown.windows.map(window => window.name)).toEqual(['5h', '7d', 'Today', 'Total', 'Usage', '可用重置'])
-  expect(shown.windows).toHaveLength(6)
-  expect(shown.plan).toBe('海能发 · 上游 5')
+  const management = {
+    groups: [
+      {
+        id: 7,
+        name: '海能发',
+        capacity: { used: 2, max: 10 },
+        accounts: [
+          {
+            id: 5,
+            usage,
+            credits: { availableResetCount: 1, resetCreditExpirations: [soon] },
+          },
+        ],
+      },
+    ],
+  }
+  const shown = presentManagementUsage(normal, management)
+  expect(shown.windows.map(window => window.name)).toEqual(['Today', 'Total', '并发', '可用重置', '5h', '7d', 'Usage'])
+  expect(shown.windows).toHaveLength(7)
+  expect(shown.plan).toBe('Wallet · 管理台 · 海能发')
   expect(shown.windows.every(window => !window.name.includes('海能发'))).toBe(true)
   expect(shown.balance).toBe('12.00 USD')
-  expect(shown.windows[5].runsOutAt).toBe(soon)
-  expect(shown.windows[5].runsOut).toBe(1)
-  expect(presentManagementUsage(normal, windows, { ...binding, accountId: 6 }).plan).not.toBe(shown.plan)
-  expect(presentManagementUsage(normal, windows, { ...binding, groupName: '另一分组' }).plan).not.toBe(shown.plan)
-  expect(presentManagementUsage(normal, [], binding)).toBe(normal)
+  expect(shown.windows[3].runsOutAt).toBe(soon)
+  expect(shown.windows[3].runsOut).toBe(1)
+  expect(presentManagementUsage(normal, null)).toBe(normal)
 })
 
 test('real key limits stay distinct and visible ahead of display-only group periods', () => {
@@ -214,13 +221,14 @@ test('real key limits stay distinct and visible ahead of display-only group peri
       { name: 'Today', display: '$1.00', aside: true },
     ],
   }
-  const windows = mapManagementUsage({ usage, credits: { availableResetCount: 0 } }, context)
-  const shown = presentManagementUsage(normal, windows, { groupName: 'Shared', accountId: 5 })
+  const shown = presentManagementUsage(normal, {
+    groups: [{ id: 7, name: 'Shared', accounts: [{ id: 5, usage, credits: { availableResetCount: 0 } }] }],
+  })
   expect(shown.windows[0]).toEqual(normal.windows[0])
-  expect(shown.plan).toBe('Pro · Shared · 上游 5')
+  expect(shown.plan).toBe('Pro · 管理台 · Shared')
   expect(shown.windows[0].aside).toBeUndefined()
   expect(shown.windows.slice(1).every(window => window.aside)).toBe(true)
-  expect(shown.windows.map(window => window.name)).toEqual(['5 hours', '5h', '7d', 'Today', '可用重置'])
+  expect(shown.windows.map(window => window.name)).toEqual(['5 hours', 'Today', '并发', '可用重置', '5h', '7d'])
 })
 
 test('coincident reset expirations are combined into the native expiry annotation', () => {

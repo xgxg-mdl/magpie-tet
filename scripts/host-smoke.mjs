@@ -221,8 +221,7 @@ try {
     managementPassword: 'test-password',
   }
   const managementPrompt = await rpc('prompt', { provider: 'tet', method: 1, inputs: managementInputs })
-  assert.equal(managementPrompt.prompt.type, 'select')
-  assert.equal(managementPrompt.prompt.options[0].value, '7:5')
+  assert.equal(managementPrompt.prompt, null)
   const passwordPrompt = await rpc('prompt', {
     provider: 'tet',
     method: 1,
@@ -238,11 +237,11 @@ try {
     method: 1,
     account: first.account,
     key: 'synthetic-key-A',
-    inputs: { ...managementInputs, managementGroup: '7:5' },
+    inputs: managementInputs,
   })
   const managed = await rpc('usage', { provider: 'tet', account: first.account })
   assert.equal(managed.balance, '12.34 USD')
-  const groupWindows = managed.windows.filter(w => ['5h', '7d', '可用重置'].includes(w.name))
+  const groupWindows = ['5h', '7d', '可用重置'].map(name => managed.windows.find(w => w.name === name))
   assert.deepEqual(
     groupWindows.slice(0, 2).map(w => w.used),
     [0, 55],
@@ -251,8 +250,9 @@ try {
   assert.equal(groupWindows[0].resetsAt, '')
   assert.equal(groupWindows[0].span, 0)
   assert.equal(groupWindows[2].display, '0 次')
-  assert.equal(managed.plan, 'Shared · 上游 5')
-  const concurrency = managed.windows.find(w => w.name === '分组并发')
+  assert(managed.plan.includes('管理台 · Shared'))
+  assert(!managed.plan.includes('上游'))
+  const concurrency = managed.windows.find(w => w.name === '并发')
   assert.equal(concurrency.amount, 2)
   assert.equal(concurrency.limit, 10)
   assert.equal(concurrency.used, 20)
@@ -260,6 +260,8 @@ try {
   const savedAuth = await readFile(join(sandbox, 'synthetic-auth.json'), 'utf8')
   assert(!savedAuth.includes('test-password'))
   assert(!savedAuth.includes('managementPassword'))
+  assert(!savedAuth.includes('groupId'))
+  assert(!savedAuth.includes('accountId'))
   console.log(
     'Official host smoke passed: root URL, account isolation, wallets with key/subscription limits, full-precision quota fields, unknown usage, concurrent forwarding, key replacement, identity, icon, live options, management prompts, display-only group quotas and password removal.',
   )
