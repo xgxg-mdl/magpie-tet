@@ -20,9 +20,9 @@ const wallet = { isValid: true, mode: 'unrestricted', balance: 9999999443,
 
 test('wallet does not invent percentage; costs and traffic are informational', () => {
   const result = mapUsage(wallet)
-  expect(result.balance).toBe('$9,999,999,443.00')
+  expect(result.balance).toBe('9,999,999,443.00 USD')
   expect(result.windows.some(w => w.balance !== undefined)).toBe(false)
-  expect(result.windows[0]).toEqual({ name: 'Today', display: '$0.00 · 0 req · 50 tok', aside: true })
+  expect(result.windows[0]).toEqual({ name: 'Today', display: '$0.00 · req 0 · 50 tok', aside: true })
   expect(result.windows.at(-1)).toEqual({ name: 'Usage', display: '14 RPM', aside: true })
   expect(result.windows.every(w => w.used === undefined)).toBe(true)
   expect(mapUsage(wallet, { showTraffic: false }).windows[0].display).toBe('$0.00')
@@ -99,7 +99,7 @@ test('custom API base applies to config, paginated models, usage and forwarding'
   }
   const models = await plugin.provider.models({ models: {} }, { auth })
   expect(models['gpt-6.1-sol'].api.url).toBe(baseURL)
-  expect((await plugin.auth.usage(async () => auth)).balance).toBe('$9,999,999,443.00')
+  expect((await plugin.auth.usage(async () => auth)).balance).toBe('9,999,999,443.00 USD')
   const loader = await plugin.auth.loader(async () => auth)
   expect(loader.baseURL).toBe(baseURL)
   expect((await loader.fetch(baseURL + '/responses/compact')).status).toBe(200)

@@ -1,9 +1,9 @@
 const finite = value => typeof value === 'number' && Number.isFinite(value)
 /** 只格式化展示值；不足一分的非零金额用边界表示，避免误报为零。 */
-function money(value, unit) {
+function money(value, unit, currencySymbol = true) {
   const small = value !== 0 && Math.abs(value) < 0.01
   const amount = small ? (value < 0 ? -0.01 : 0.01) : value === 0 ? 0 : value
-  const formatted = unit === 'USD'
+  const formatted = unit === 'USD' && currencySymbol
     ? amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
     : amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + unit
   return (small ? (value < 0 ? '>' : '<') : '') + formatted
@@ -25,7 +25,7 @@ export function mapUsage(data, { showTraffic = true } = {}) {
   const hasSubscription = sub && (timestamp(sub.expires_at) || periods.some(([period]) => finite(sub[period + '_limit_usd']) && sub[period + '_limit_usd'] > 0))
   /** 钱包属于账户，额度属于当前密钥或订阅；并存时不能互相遮蔽或相加。 */
   const hasWallet = finite(data.balance)
-  if (hasWallet) result.balance = money(data.balance, unit)
+  if (hasWallet) result.balance = money(data.balance, unit, false)
   const addLimit = (name, used, limit, extra = {}) => {
     if (!finite(limit) || limit <= 0) return
     /** 宿主会把缺少 amount 的数值窗口归零，未知用量必须用纯展示窗口表达。 */
@@ -67,7 +67,7 @@ export function mapUsage(data, { showTraffic = true } = {}) {
     const cost = finite(stats?.actual_cost) ? stats.actual_cost : stats?.cost
     if (!finite(cost)) continue
     const details = [money(cost, unit)]
-    if (showTraffic && finite(stats.requests)) details.push(stats.requests.toLocaleString('en-US') + ' req')
+    if (showTraffic && finite(stats.requests)) details.push('req ' + stats.requests.toLocaleString('en-US'))
     if (showTraffic && finite(stats.total_tokens)) details.push(stats.total_tokens.toLocaleString('en-US') + ' tok')
     result.windows.push({ name, display: details.join(' · '), aside: true })
   }

@@ -33,7 +33,7 @@ test('saved account roots normalize across catalog, pagination, usage and forwar
   expect(login.metadata.baseURL).toBe('https://relay.example/v1')
   const models = await plugin.provider.models({ models: {} }, { auth })
   expect(models['gpt-6.1-sol'].api.url).toBe('https://relay.example/v1')
-  expect((await plugin.auth.usage(async () => auth)).balance).toBe('$12.35')
+  expect((await plugin.auth.usage(async () => auth)).balance).toBe('12.35 USD')
   const loader = await plugin.auth.loader(async () => auth)
   expect(loader.baseURL).toBe('https://relay.example/v1')
   expect((await loader.fetch(loader.baseURL + '/responses')).ok).toBe(true)
@@ -45,7 +45,7 @@ test('saved account roots normalize across catalog, pagination, usage and forwar
 test('wallets use one native balance without fabricating progress', () => {
   for (const balance of [0, -1.234, 12.345, 9999999385.337]) {
     const usage = mapUsage({ isValid: true, balance })
-    expect(usage.balance).toBe(balance.toLocaleString('en-US', { style: 'currency', currency: 'USD' }))
+    expect(usage.balance).toBe(balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' USD')
     expect(usage.windows).toEqual([])
   }
   expect(mapUsage({ isValid: true, balance: 12.3456, unit: 'EUR' }).balance).toBe('12.35 EUR')
@@ -53,12 +53,12 @@ test('wallets use one native balance without fabricating progress', () => {
 
 test('costs display two decimals without presenting small nonzero charges as zero', () => {
   const data = { isValid: true, balance: 10, usage: {
-    today: { cost: 0.0001, requests: 12, total_tokens: 345 }, total: { actual_cost: 1.2345 }, rpm: 2, tpm: 1000,
+    today: { cost: 0.0001, requests: 12, total_tokens: 345 }, total: { actual_cost: 1.2345, requests: 26710 }, rpm: 2, tpm: 1000,
   } }
   const usage = mapUsage(data)
   expect(usage.windows).toEqual([
-    { name: 'Today', display: '<$0.01 · 12 req · 345 tok', aside: true },
-    { name: 'Total', display: '$1.23', aside: true },
+    { name: 'Today', display: '<$0.01 · req 12 · 345 tok', aside: true },
+    { name: 'Total', display: '$1.23 · req 26,710', aside: true },
     { name: 'Usage', display: '2 RPM · 1,000 TPM', aside: true },
   ])
   expect(mapUsage(data, { showTraffic: false }).windows).toEqual([

@@ -59,7 +59,7 @@ test('empty or unusable subscription data does not suppress a real wallet', () =
   for (const sub of [{}, [], null, 'subscription', 0, { daily_usage_usd: 1 },
     { daily_limit_usd: 0 }, { daily_limit_usd: -1 }, { expires_at: 'not-a-time' }]) {
     const usage = mapUsage({ isValid: true, balance: 12.34, subscription: sub })
-    expect(usage.balance).toBe('$12.34')
+    expect(usage.balance).toBe('12.34 USD')
     expect(usage.windows).toEqual([])
     expect(usage.error).toBeUndefined()
   }
