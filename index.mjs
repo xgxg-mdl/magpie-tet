@@ -4,11 +4,14 @@ import { credentials, forward, createQueries } from './src/transport.mjs'
 import { discoverModels, loadCatalog } from './src/models.mjs'
 import { mapUsage } from './src/usage.mjs'
 import { safeDetails } from './src/errors.mjs'
+import { createManagement } from './src/management.mjs'
 
-const icon = 'data:image/svg+xml;base64,' + readFileSync(new URL('./assets/logo.svg', import.meta.url)).toString('base64')
+const icon =
+  'data:image/svg+xml;base64,' + readFileSync(new URL('./assets/logo.svg', import.meta.url)).toString('base64')
 
 export const TetPlugin = async (input = {}, options = {}) => {
   const query = createQueries()
+  const management = createManagement()
   const configured = settings(options)
   /** 只有供应商开关从宿主实时读取，结构化包选项由重载生效。 */
   const currentSettings = () => {
@@ -24,36 +27,90 @@ export const TetPlugin = async (input = {}, options = {}) => {
       cfg.provider[PROVIDER] ??= { name: NAME, npm: SDK, ...(baseURL ? { api: baseURL } : {}), models: {} }
     },
     auth: {
-      provider: PROVIDER, icon,
+      provider: PROVIDER,
+      icon,
       single: false,
-      options: [{ key: 'show-traffic', label: 'Show traffic statistics', description: 'Include request counts, tokens and RPM/TPM.', default: configured.showTraffic }],
-      methods: [{ type: 'api', label: 'TET API key', placeholder: 'sk-…',
-        prompts: [{ type: 'text', key: 'baseURL', message: 'API base URL', placeholder: 'https://relay.example',
-          validate(value) { try { apiBase(value) } catch (error) { return error.message } } }],
-        async authorize(inputs) {
-          return { type: 'success', metadata: { baseURL: apiBase(inputs.baseURL) } }
+      options: [
+        {
+          key: 'show-traffic',
+          label: 'Show traffic statistics',
+          description: 'Include request counts, tokens and RPM/TPM.',
+          default: configured.showTraffic,
         },
-      }],
+      ],
+      methods: [
+        {
+          type: 'api',
+          label: 'TET API key',
+          placeholder: 'sk-…',
+          prompts: [
+            {
+              type: 'text',
+              key: 'baseURL',
+              message: 'API base URL',
+              placeholder: 'https://relay.example',
+              validate(value) {
+                try {
+                  apiBase(value)
+                } catch (error) {
+                  return error.message
+                }
+              },
+            },
+          ],
+          async authorize(inputs) {
+            return { type: 'success', metadata: { baseURL: apiBase(inputs.baseURL) } }
+          },
+        },
+        {
+          type: 'api',
+          label: 'TET API key with management usage',
+          placeholder: 'sk-…',
+          ask(inputs) {
+            return management.ask(inputs, currentSettings().queryTimeoutMs)
+          },
+          authorize(inputs, { signal } = {}) {
+            return management.authorize(inputs, currentSettings().queryTimeoutMs, signal)
+          },
+        },
+      ],
       async loader(getAuth) {
         const auth = await getAuth()
         if (!auth) return {}
         const baseURL = accountBase(auth, currentSettings())
-        return { baseURL, apiKey: credentials(auth), async fetch(input, init) {
-          const current = await getAuth()
-          /** 地址变更时旧请求不能携带新站点的 Key 发往旧站点。 */
-          if (accountBase(current, currentSettings()) !== baseURL) throw new Error('TET account URL changed. Reload the request.')
-          return forward(input, init, async () => current, baseURL)
-        } }
+        return {
+          baseURL,
+          apiKey: credentials(auth),
+          async fetch(input, init) {
+            const current = await getAuth()
+            /** 地址变更时旧请求不能携带新站点的 Key 发往旧站点。 */
+            if (accountBase(current, currentSettings()) !== baseURL)
+              throw new Error('TET account URL changed. Reload the request.')
+            return forward(input, init, async () => current, baseURL)
+          },
+        }
       },
       async usage(getAuth) {
         try {
           const opts = currentSettings()
           const auth = await getAuth()
           credentials(auth)
-          const payload = await query('/usage', auth, opts.queryTimeoutMs, accountBase(auth, opts))
-          return mapUsage(payload, opts)
+          const [keyUsage, groupUsage] = await Promise.allSettled([
+            query('/usage', auth, opts.queryTimeoutMs, accountBase(auth, opts)),
+            management.windows(auth, opts.queryTimeoutMs),
+          ])
+          if (keyUsage.status === 'rejected') throw keyUsage.reason
+          const payload = keyUsage.value
+          const usage = mapUsage(payload, opts)
+          if (payload.isValid && groupUsage.status === 'fulfilled') usage.windows.push(...groupUsage.value)
+          return usage
         } catch (error) {
-          return { error: error.message, windows: [], ...safeDetails(error), ...(error.signIn ? { signIn: error.signIn } : {}) }
+          return {
+            error: error.message,
+            windows: [],
+            ...safeDetails(error),
+            ...(error.signIn ? { signIn: error.signIn } : {}),
+          }
         }
       },
     },
@@ -64,7 +121,11 @@ export const TetPlugin = async (input = {}, options = {}) => {
         const opts = currentSettings()
         opts.baseURL = accountBase(auth, opts)
         /** 让宿主保留账号自己的缓存并显示刷新错误，避免悄悄伪装成刷新成功。 */
-        return discoverModels(await loadCatalog(path => query(path, auth, opts.queryTimeoutMs, opts.baseURL), opts.baseURL), provider, opts)
+        return discoverModels(
+          await loadCatalog(path => query(path, auth, opts.queryTimeoutMs, opts.baseURL), opts.baseURL),
+          provider,
+          opts,
+        )
       },
     },
   }
