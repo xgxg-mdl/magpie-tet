@@ -12,6 +12,8 @@
     "LICENSE"
   ],
   "scripts": {
+    "prepare": "husky",
+    "lint-staged": "lint-staged",
     "test": "bun test",
     "check": "node scripts/check-package.mjs",
     "sync-icon": "node scripts/sync-icon.mjs",
@@ -42,5 +44,10 @@
       "modelOverrides": {}
     },
     "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IlRFVCI+PHJlY3QgeD0iNCIgeT0iNCIgd2lkdGg9IjEyMCIgaGVpZ2h0PSIxMjAiIHJ4PSIzMCIgZmlsbD0iIzE3MmIzOCIvPjxwYXRoIGQ9Ik0yNiAzMUg4N1YyMEwxMDkgNDJMODcgNjRWNTNINzJWOTlINTZWNTNIMjZaIiBmaWxsPSIjNmVlN2MyIi8+PHBhdGggZD0iTTEwMCA3OUg4NVY3MEw2OSA4Nkw4NSAxMDJWOTNIMTAwWiIgZmlsbD0iI2Y0ZmFmOCIvPjwvc3ZnPg=="
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.0",
+    "prettier": "^3.9.10"
   }
 }
