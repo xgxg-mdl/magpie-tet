@@ -20,8 +20,8 @@ await writeFile(
     '  const envelope = data => Response.json({success:true,data});',
     '  if (url.endsWith("/api/auth/login")) return envelope({token:"test-session"});',
     '  if (new Headers(init?.headers).get("authorization") !== "Bearer test-session") throw new Error("Wrong management credential");',
-    '  if (url.includes("?pageNum=")) return envelope({content:[{id:7,name:"Shared",accounts:[{id:5}]}],totalElements:1});',
-    '  if (url.endsWith("/5/usage?active=false")) return envelope({fiveHour:{utilization:0,resetsAt:"2099-01-01T00:00:00Z"},sevenDay:{utilization:55,resetsAt:"2099-01-01T00:00:00Z"}});',
+    '  if (url.includes("?pageNum=")) return envelope({content:[{id:7,name:"Shared",accounts:[{id:5}],capacity:{used:2,max:10}}],totalElements:1});',
+    '  if (url.endsWith("/5/usage?active=false")) return envelope({fiveHour:{utilization:0,resetsAt:"2000-01-01T00:00:00Z"},sevenDay:{utilization:55,resetsAt:"2099-01-01T00:00:00Z"}});',
     '  if (url.endsWith("/5/credits")) return envelope({availableResetCount:0});',
     '  throw new Error("Unexpected management endpoint");',
     ' }',
@@ -242,13 +242,21 @@ try {
   })
   const managed = await rpc('usage', { provider: 'tet', account: first.account })
   assert.equal(managed.balance, '12.34 USD')
-  const groupWindows = managed.windows.filter(w => w.name.startsWith('Group '))
+  const groupWindows = managed.windows.filter(w => ['5h', '7d', '可用重置'].includes(w.name))
   assert.deepEqual(
     groupWindows.slice(0, 2).map(w => w.used),
     [0, 55],
   )
   assert(groupWindows.every(w => w.aside))
-  assert.equal(groupWindows[2].display, '0 remaining')
+  assert.equal(groupWindows[0].resetsAt, '')
+  assert.equal(groupWindows[0].span, 0)
+  assert.equal(groupWindows[2].display, '0 次')
+  assert.equal(managed.plan, 'Shared · 上游 5')
+  const concurrency = managed.windows.find(w => w.name === '分组并发')
+  assert.equal(concurrency.amount, 2)
+  assert.equal(concurrency.limit, 10)
+  assert.equal(concurrency.used, 20)
+  assert.equal(concurrency.aside, true)
   const savedAuth = await readFile(join(sandbox, 'synthetic-auth.json'), 'utf8')
   assert(!savedAuth.includes('test-password'))
   assert(!savedAuth.includes('managementPassword'))

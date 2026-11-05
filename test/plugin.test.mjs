@@ -28,7 +28,7 @@ test('wallet does not invent percentage; costs and traffic are informational', (
   const result = mapUsage(wallet)
   expect(result.balance).toBe('9,999,999,443.00 USD')
   expect(result.windows.some(w => w.balance !== undefined)).toBe(false)
-  expect(result.windows[0]).toEqual({ name: 'Today', display: '$0.00 · req 0 · 50 tok', aside: true })
+  expect(result.windows[0]).toEqual({ name: 'Today', display: '$0.00 · req 0 / 50 tok', aside: true })
   expect(result.windows.at(-1)).toEqual({ name: 'Usage', display: '14 RPM', aside: true })
   expect(result.windows.every(w => w.used === undefined)).toBe(true)
   expect(mapUsage(wallet, { showTraffic: false }).windows[0].display).toBe('$0.00')

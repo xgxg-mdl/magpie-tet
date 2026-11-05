@@ -72,9 +72,9 @@ test('costs display two decimals without presenting small nonzero charges as zer
   }
   const usage = mapUsage(data)
   expect(usage.windows).toEqual([
-    { name: 'Today', display: '<$0.01 · req 12 · 345 tok', aside: true },
+    { name: 'Today', display: '<$0.01 · req 12 / 345 tok', aside: true },
     { name: 'Total', display: '$1.23 · req 26,710', aside: true },
-    { name: 'Usage', display: '2 RPM · 1,000 TPM', aside: true },
+    { name: 'Usage', display: '2 RPM · 1K TPM', aside: true },
   ])
   expect(mapUsage(data, { showTraffic: false }).windows).toEqual([
     { name: 'Today', display: '<$0.01', aside: true },
@@ -97,6 +97,21 @@ test('real limits retain native progress and unknown usage remains unknown', () 
   expect(usage.windows[1]).toEqual({ name: 'Weekly', display: 'Limit $100.00 · usage unavailable', span: 604800 })
   expect(usage.windows[2]).toMatchObject({ amount: 1200, limit: 1000, unit: 'USD' })
   expect(usage.windows.every(window => window.aside === undefined)).toBe(true)
+})
+
+test('large token counts stay compact and within the host two-part display contract', () => {
+  const usage = mapUsage({
+    isValid: true,
+    balance: 10,
+    usage: {
+      today: { actual_cost: 152.47, requests: 1207, total_tokens: 26500000 },
+      rpm: 14,
+      tpm: 5382799,
+    },
+  })
+  expect(usage.windows[0].display).toBe('$152.47 · req 1,207 / 26.5M tok')
+  expect(usage.windows[0].display.split(' · ')).toHaveLength(2)
+  expect(usage.windows[1].display).toBe('14 RPM · 5.4M TPM')
 })
 
 test('known period labels translate without interpreting arbitrary server names as object keys', () => {

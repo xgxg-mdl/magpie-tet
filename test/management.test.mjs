@@ -15,7 +15,7 @@ const inputs = {
 }
 const envelope = data => Response.json({ success: true, data })
 const future = () => new Date(Date.now() + 86400000).toISOString()
-const group = { id: 7, name: 'Shared', accounts: [{ id: 5 }] }
+const group = { id: 7, name: 'Shared', accounts: [{ id: 5 }], capacity: { used: 2, max: 10 } }
 const sessionToken = 'test-session'
 function upstream(log = []) {
   return async (url, init) => {
@@ -53,7 +53,7 @@ test('management sign-in uses masked password and selects an upstream account wi
   }
   const selection = await client.ask(entered, 1000)
   expect(selection.type).toBe('select')
-  expect(selection.options).toEqual([{ value: '7:5', label: 'Shared / account #5' }])
+  expect(selection.options).toEqual([{ value: '7:5', label: 'Shared · 上游 5' }])
   entered.managementGroup = selection.options[0].value
   expect(await client.ask(entered, 1000)).toBeNull()
   const result = await client.authorize(entered, 1000)
@@ -70,7 +70,7 @@ test('management sign-in uses masked password and selects an upstream account wi
 test('group selection is checked against the authenticated list', async () => {
   globalThis.fetch = upstream()
   await expect(createManagement().authorize({ ...inputs, managementGroup: '7:999' }, 1000)).rejects.toThrow(
-    'Select a readable',
+    '请选择有权查看',
   )
 })
 
@@ -89,11 +89,19 @@ test('management and API credentials stay isolated and traffic toggles do not hi
   const auth = { type: 'api', key: 'synthetic-api-key', metadata: configured.metadata }
   const result = await plugin.auth.usage(async () => auth)
   expect(result.balance).toBe('12.00 USD')
-  expect(result.windows[0].display).toBe('$1.00')
-  const windows = result.windows.filter(window => window.name.startsWith('Group '))
+  expect(result.windows.find(window => window.name === 'Today').display).toBe('$1.00')
+  const windows = result.windows.filter(window => ['5h', '7d', '可用重置'].includes(window.name))
   expect(windows[0].used).toBe(0)
   expect(windows[1].used).toBe(55)
-  expect(windows[2].display).toBe('0 remaining')
+  expect(windows[2].display).toBe('0 次')
+  expect(result.plan).toBe('Shared · 上游 5')
+  expect(result.windows.find(window => window.name === '分组并发')).toEqual({
+    name: '分组并发',
+    amount: 2,
+    limit: 10,
+    used: 20,
+    aside: true,
+  })
   expect(windows.every(window => window.aside)).toBe(true)
   expect(log.some(call => call.url.includes('/7/usage'))).toBe(false)
   expect(log.some(call => call.url.includes('/reset'))).toBe(false)
@@ -112,7 +120,7 @@ test('expired management sessions never mark a valid API key expired or hide its
   expect(usage.balance).toBe('12.00 USD')
   expect(usage.signIn).toBeUndefined()
   expect(usage.error).toBeUndefined()
-  expect(usage.windows.every(window => window.display.includes('session expired'))).toBe(true)
+  expect(usage.windows.every(window => window.display === '管理台登录已过期')).toBe(true)
   expect(JSON.stringify(usage)).not.toContain('private-server-detail')
 })
 
@@ -139,25 +147,24 @@ test('slow management queries use a short independent budget and preserve a comp
     return new Promise((resolve, reject) => {
       slowSignals.push(init.signal)
       init.signal.addEventListener('abort', () => reject(init.signal.reason), { once: true })
-      if (slowSignals.length === 2) ready()
+      if (slowSignals.length === 3) ready()
     })
   }
   let work
   try {
     work = plugin.auth.usage(async () => auth)
     await managementStarted
-    for (const signal of slowSignals) {
-      const deadline = deadlines.find(item => item.controller.signal === signal)
+    for (const deadline of deadlines.filter(item => item.ms !== 60000)) {
       expect(deadline.ms).toBeLessThanOrEqual(5000)
       deadline.controller.abort(new DOMException('Timed out', 'TimeoutError'))
     }
     const result = await work
     expect(result.balance).toBe('12.00 USD')
-    expect(result.windows[0].display).toBe('$1.00 · req 2')
+    expect(result.windows.find(window => window.name === 'Today').display).toBe('$1.00 · req 2')
     expect(
       result.windows
-        .filter(window => window.name.startsWith('Group '))
-        .every(window => window.display.includes('timed out')),
+        .filter(window => ['5h', '7d', '可用重置', '分组并发'].includes(window.name))
+        .every(window => window.display === '管理台查询超时或连接失败'),
     ).toBe(true)
     expect(result.error).toBeUndefined()
     expect(result.signIn).toBeUndefined()
@@ -181,10 +188,48 @@ test('parallel requests for one quota account share only in-flight management ca
     return read(...args)
   }
   const [a, b] = await Promise.all([client.windows(auth, 1000), client.windows({ ...auth, key: 'key-b' }, 1000)])
-  expect(log).toHaveLength(2)
-  expect(a[0].name).not.toBe(b[0].name)
+  expect(log).toHaveLength(3)
+  expect(a[0].name).toBe(b[0].name)
   await client.windows(auth, 1000)
-  expect(log).toHaveLength(4)
+  expect(log).toHaveLength(6)
+})
+
+test('capacity refresh failures preserve independent quota and wallet readings', async () => {
+  const client = createManagement()
+  globalThis.fetch = upstream()
+  const result = await client.authorize(inputs, 1000)
+  const read = upstream()
+  globalThis.fetch = (url, init) =>
+    String(url).includes('?pageNum=')
+      ? Promise.resolve(new Response('private-detail', { status: 503 }))
+      : read(url, init)
+  const windows = await client.windows({ metadata: result.metadata }, 1000)
+  expect(windows.find(window => window.name === '7d').used).toBe(55)
+  expect(windows.find(window => window.name === '可用重置').display).toBe('0 次')
+  expect(windows.find(window => window.name === '分组并发').display).toBe('管理台服务异常（HTTP 503）')
+  expect(JSON.stringify(windows)).not.toContain('private-detail')
+})
+
+test('different quota accounts share the in-flight group list but refresh its snapshot on the next read', async () => {
+  const client = createManagement()
+  globalThis.fetch = upstream()
+  const result = await client.authorize(inputs, 1000)
+  const auth = { metadata: result.metadata }
+  const other = { metadata: { ...result.metadata, management: { ...result.metadata.management, accountId: 6 } } }
+  const log = []
+  const read = upstream(log)
+  globalThis.fetch = async (...args) => {
+    await new Promise(resolve => setTimeout(resolve, 5))
+    return read(...args)
+  }
+  await Promise.all([client.windows(auth, 1000), client.windows(other, 1000)])
+  expect(log.filter(call => call.url.includes('?pageNum='))).toHaveLength(1)
+  globalThis.fetch = async (url, init) =>
+    String(url).includes('?pageNum=')
+      ? envelope({ content: [{ ...group, capacity: { used: 8, max: 10 } }], totalElements: 1 })
+      : read(url, init)
+  const windows = await client.windows(auth, 1000)
+  expect(windows.find(window => window.name === '分组并发').amount).toBe(8)
 })
 
 test('changing the API address or invalidating a binding prevents management network access', async () => {
@@ -197,10 +242,10 @@ test('changing the API address or invalidating a binding prevents management net
     throw new Error('must not fetch')
   }
   const bad = { type: 'api', key: 'key-a', metadata: { ...result.metadata, baseURL: 'https://another.example/v1' } }
-  expect((await client.windows(bad, 1000))[0].display).toContain('configuration changed')
+  expect((await client.windows(bad, 1000))[0].display).toContain('配置已变更')
   const expired = { type: 'api', key: 'key-a', metadata: result.metadata }
   expired.metadata.management.expiresAt = Date.now() - 1
-  expect((await client.windows(expired, 1000))[0].display).toContain('session expired')
+  expect((await client.windows(expired, 1000))[0].display).toBe('管理台登录已过期')
   expect(calls).toBe(0)
 })
 
@@ -213,7 +258,7 @@ test('management URLs reject credential URLs, query strings, fragments and non-H
     'file:///tmp/x',
     123,
   ]) {
-    expect(() => managementBase(url)).toThrow('Management URL')
+    expect(() => managementBase(url)).toThrow('管理台地址')
   }
 })
 
@@ -243,5 +288,5 @@ test('repeated quota pagination is bounded instead of silently binding incomplet
     String(url).endsWith('/api/auth/login')
       ? envelope({ token: sessionToken })
       : envelope({ content: [group], totalElements: 2 })
-  await expect(createManagement().authorize(inputs, 1000)).rejects.toThrow('pagination repeated')
+  await expect(createManagement().authorize(inputs, 1000)).rejects.toThrow('分页重复')
 })

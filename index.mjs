@@ -5,6 +5,7 @@ import { discoverModels, loadCatalog } from './src/models.mjs'
 import { mapUsage } from './src/usage.mjs'
 import { safeDetails } from './src/errors.mjs'
 import { createManagement } from './src/management.mjs'
+import { presentManagementUsage } from './src/management-usage.mjs'
 
 const icon =
   'data:image/svg+xml;base64,' + readFileSync(new URL('./assets/logo.svg', import.meta.url)).toString('base64')
@@ -64,7 +65,7 @@ export const TetPlugin = async (input = {}, options = {}) => {
         },
         {
           type: 'api',
-          label: 'TET API key with management usage',
+          label: 'TET API Key + 管理台额度',
           placeholder: 'sk-…',
           ask(inputs) {
             return management.ask(inputs, currentSettings().queryTimeoutMs)
@@ -102,7 +103,9 @@ export const TetPlugin = async (input = {}, options = {}) => {
           if (keyUsage.status === 'rejected') throw keyUsage.reason
           const payload = keyUsage.value
           const usage = mapUsage(payload, opts)
-          if (payload.isValid && groupUsage.status === 'fulfilled') usage.windows.push(...groupUsage.value)
+          if (payload.isValid && groupUsage.status === 'fulfilled') {
+            return presentManagementUsage(usage, groupUsage.value, auth.metadata?.management)
+          }
           return usage
         } catch (error) {
           return {

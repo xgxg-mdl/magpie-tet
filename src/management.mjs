@@ -14,7 +14,7 @@ export function managementBase(value) {
     if (url.username || url.password || url.search || url.hash) throw new Error()
     return url.href.replace(/\/+$/, '')
   } catch {
-    throw new Error('Management URL must be an HTTP(S) URL without credentials, query or fragment.')
+    throw new Error('管理台地址须使用 HTTP(S)，且不含凭据、查询参数或片段')
   }
 }
 
@@ -34,16 +34,16 @@ async function request(baseURL, path, { token, body, timeoutMs, signal } = {}) {
       redirect: 'error',
     })
   } catch {
-    throw new Error('Management query failed or timed out. Retry later.')
+    throw new Error('管理台查询超时或连接失败')
   }
   if (!response.ok) {
     await response.body?.cancel().catch(() => {})
-    if (response.status === 401) throw new Error('Management session expired. Sign in again using management usage.')
-    if (response.status === 403) throw new Error('Management account cannot read this quota group.')
-    throw new Error('Management query returned HTTP ' + response.status + '. Retry later.')
+    if (response.status === 401) throw new Error(body ? '管理台账号或密码有误' : '管理台登录已过期')
+    if (response.status === 403) throw new Error('无权查看此额度')
+    throw new Error('管理台服务异常（HTTP ' + response.status + '）')
   }
   const reader = response.body?.getReader()
-  if (!reader) throw new Error('Management returned an empty response.')
+  if (!reader) throw new Error('管理台返回空数据')
   try {
     const chunks = []
     let size = 0
@@ -59,7 +59,7 @@ async function request(baseURL, path, { token, body, timeoutMs, signal } = {}) {
     return envelope.data
   } catch {
     await reader.cancel().catch(() => {})
-    throw new Error('Management returned an invalid, oversized or interrupted response.')
+    throw new Error('管理台数据异常，请重试')
   } finally {
     reader.releaseLock()
   }
@@ -70,40 +70,42 @@ async function listGroups(url, token, timeoutMs, signal) {
   for (let page = 1; page <= 20; page++) {
     const data = await request(url, GROUPS + '?pageNum=' + page + '&pageSize=100', { token, timeoutMs, signal })
     if (!Array.isArray(data.content) || !Number.isSafeInteger(data.totalElements) || data.totalElements < 0) {
-      throw new Error('Management returned an invalid quota group list.')
+      throw new Error('管理台分组列表异常')
     }
     for (const item of data.content) {
       if (!Number.isSafeInteger(item?.id) || item.id <= 0 || typeof item.name !== 'string' || !item.name.trim()) {
-        throw new Error('Management returned an invalid quota group.')
+        throw new Error('管理台分组数据异常')
       }
-      if (groups.has(item.id)) throw new Error('Management quota group pagination repeated.')
+      if (groups.has(item.id)) throw new Error('管理台分组分页重复')
       if (
         !Array.isArray(item.accounts) ||
         item.accounts.some(account => !Number.isSafeInteger(account?.id) || account.id <= 0)
       ) {
-        throw new Error('Management returned invalid quota accounts.')
+        throw new Error('管理台上游账号列表异常')
       }
       groups.set(item.id, {
         id: item.id,
         name: item.name.trim(),
         accounts: item.accounts.map(account => ({ id: account.id })),
+        capacity: item.capacity,
       })
     }
     if (groups.size >= data.totalElements) return [...groups.values()]
     if (!data.content.length) break
   }
-  throw new Error('Management quota group list is incomplete or excessive.')
+  throw new Error('管理台分组列表不完整或过大')
 }
 
 /** 不解析 JWT 作为权限依据；由服务端判断会话有效性，过期后重新登录而不保存密码。 */
 export function createManagement() {
   const signIns = new Map()
   const pending = new Map()
+  const pendingGroups = new Map()
   const fields = [
-    { type: 'text', key: 'baseURL', message: 'API base URL', placeholder: 'https://relay.example' },
-    { type: 'text', key: 'managementURL', message: 'Management URL', placeholder: 'https://console.example' },
-    { type: 'text', key: 'managementUsername', message: 'Management username' },
-    { type: 'password', key: 'managementPassword', message: 'Management password' },
+    { type: 'text', key: 'baseURL', message: '网关 API 地址', placeholder: 'https://relay.example' },
+    { type: 'text', key: 'managementURL', message: '管理台地址', placeholder: 'https://console.example' },
+    { type: 'text', key: 'managementUsername', message: '管理台账号' },
+    { type: 'password', key: 'managementPassword', message: '管理台密码' },
   ]
   const flowKey = inputs =>
     createHash('sha256')
@@ -119,7 +121,7 @@ export function createManagement() {
       typeof inputs.managementPassword !== 'string' ||
       !inputs.managementPassword
     ) {
-      throw new Error('Enter the management username and password.')
+      throw new Error('请填写管理台账号和密码')
     }
     for (const [id, cached] of signIns) if (cached.until <= Date.now()) signIns.delete(id)
     const id = flowKey(inputs)
@@ -132,12 +134,11 @@ export function createManagement() {
           signal,
         })
         if (typeof data.token !== 'string' || !data.token.trim() || /\s/.test(data.token)) {
-          throw new Error('Management login returned an invalid session.')
+          throw new Error('管理台登录数据异常')
         }
         const groups = await listGroups(url, data.token, timeoutMs, signal)
-        if (!groups.length) throw new Error('No readable management quota groups were found.')
-        if (!groups.some(group => group.accounts.length))
-          throw new Error('No readable management quota accounts were found.')
+        if (!groups.length) throw new Error('没有可查看的额度分组')
+        if (!groups.some(group => group.accounts.length)) throw new Error('没有可查看的上游账号额度')
         const expiresAt = Number.isFinite(data.tokenExpiresAt) ? data.tokenExpiresAt * 1000 : undefined
         return { url, token: data.token, groups, expiresAt }
       })()
@@ -158,11 +159,11 @@ export function createManagement() {
       return {
         type: 'select',
         key: 'managementGroup',
-        message: 'Quota group to display (shared group, display only)',
+        message: '选择要展示额度的分组及上游账号',
         options: groups.flatMap(group =>
           group.accounts.map(account => ({
             value: group.id + ':' + account.id,
-            label: group.name + ' / account #' + account.id,
+            label: group.name + ' · 上游 ' + account.id,
           })),
         ),
       }
@@ -175,7 +176,7 @@ export function createManagement() {
           group.accounts.some(account => group.id + ':' + account.id === inputs.managementGroup),
         )
         const account = group?.accounts.find(account => group.id + ':' + account.id === inputs.managementGroup)
-        if (!group || !account) throw new Error('Select a readable management quota account.')
+        if (!group || !account) throw new Error('请选择有权查看的上游账号')
         return {
           type: 'success',
           metadata: {
@@ -203,7 +204,6 @@ export function createManagement() {
     async windows(auth, timeoutMs) {
       const binding = auth?.metadata?.management
       if (!binding) return []
-      const keyLabel = createHash('sha256').update(String(auth.key)).digest('hex').slice(0, 8)
       try {
         if (
           !record(binding) ||
@@ -218,13 +218,21 @@ export function createManagement() {
           binding.apiBaseURL !== apiBase(auth.metadata.baseURL)
         )
           throw new Error()
-        const groupName = binding.groupName + ' / account #' + binding.accountId
         if (Number.isFinite(binding.expiresAt) && binding.expiresAt <= Date.now()) {
-          const expired = 'Management session expired. Sign in again using management usage.'
-          return mapManagementUsage({ usageError: expired, creditsError: expired }, { groupName, keyLabel })
+          const expired = '管理台登录已过期'
+          return mapManagementUsage({ usageError: expired, creditsError: expired, capacityError: expired })
         }
         const url = managementBase(binding.url)
         const usageTimeoutMs = Math.min(timeoutMs, USAGE_TIMEOUT_MS)
+        const groupScope = createHash('sha256')
+          .update(JSON.stringify([url, binding.token, usageTimeoutMs]))
+          .digest('hex')
+        if (!pendingGroups.has(groupScope)) {
+          const task = listGroups(url, binding.token, usageTimeoutMs, AbortSignal.timeout(usageTimeoutMs)).finally(() =>
+            pendingGroups.delete(groupScope),
+          )
+          pendingGroups.set(groupScope, task)
+        }
         const scope = createHash('sha256')
           .update(JSON.stringify([url, binding.token, binding.accountId, usageTimeoutMs]))
           .digest('hex')
@@ -239,19 +247,22 @@ export function createManagement() {
           ).finally(() => pending.delete(scope))
           pending.set(scope, task)
         }
-        const [usage, credits] = await pending.get(scope)
-        return mapManagementUsage(
-          {
-            ...(usage.status === 'fulfilled' ? { usage: usage.value } : { usageError: usage.reason.message }),
-            ...(credits.status === 'fulfilled' ? { credits: credits.value } : { creditsError: credits.reason.message }),
-          },
-          { groupName, keyLabel },
-        )
+        const [readings, groups] = await Promise.allSettled([pending.get(scope), pendingGroups.get(groupScope)])
+        if (readings.status === 'rejected') throw readings.reason
+        const [usage, credits] = readings.value
+        const group = groups.status === 'fulfilled' ? groups.value.find(item => item.id === binding.groupId) : null
+        return mapManagementUsage({
+          ...(usage.status === 'fulfilled' ? { usage: usage.value } : { usageError: usage.reason.message }),
+          ...(credits.status === 'fulfilled' ? { credits: credits.value } : { creditsError: credits.reason.message }),
+          ...(groups.status === 'fulfilled'
+            ? { capacity: group?.capacity ?? null, capacityError: group ? undefined : '分组已不可用' }
+            : { capacityError: groups.reason.message }),
+        })
       } catch {
         return [
           {
-            name: 'Management usage',
-            display: 'Management configuration changed or is invalid. Sign in again using management usage.',
+            name: '管理台额度',
+            display: '配置已变更，请重新登录',
             aside: true,
           },
         ]

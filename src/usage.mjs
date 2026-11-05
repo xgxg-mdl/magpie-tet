@@ -1,4 +1,5 @@
 const finite = value => typeof value === 'number' && Number.isFinite(value)
+const compactTokens = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format
 /** 只格式化展示值；不足一分的非零金额用边界表示，避免误报为零。 */
 function money(value, unit, currencySymbol = true) {
   const small = value !== 0 && Math.abs(value) < 0.01
@@ -83,14 +84,17 @@ export function mapUsage(data, { showTraffic = true } = {}) {
     const cost = finite(stats?.actual_cost) ? stats.actual_cost : stats?.cost
     if (!finite(cost)) continue
     const details = [money(cost, unit)]
-    if (showTraffic && finite(stats.requests)) details.push('req ' + stats.requests.toLocaleString('en-US'))
-    if (showTraffic && finite(stats.total_tokens)) details.push(stats.total_tokens.toLocaleString('en-US') + ' tok')
+    const traffic = []
+    if (showTraffic && finite(stats.requests)) traffic.push('req ' + stats.requests.toLocaleString('en-US'))
+    if (showTraffic && finite(stats.total_tokens)) traffic.push(compactTokens(stats.total_tokens) + ' tok')
+    // 宿主只显示以“ · ”分开的前两段，流量明细放在同一段，避免 Token 信息丢失。
+    if (traffic.length) details.push(traffic.join(' / '))
     result.windows.push({ name, display: details.join(' · '), aside: true })
   }
   if (showTraffic && (finite(data.usage?.rpm) || finite(data.usage?.tpm))) {
     const parts = []
     if (finite(data.usage.rpm)) parts.push(data.usage.rpm.toLocaleString('en-US') + ' RPM')
-    if (finite(data.usage.tpm)) parts.push(data.usage.tpm.toLocaleString('en-US') + ' TPM')
+    if (finite(data.usage.tpm)) parts.push(compactTokens(data.usage.tpm) + ' TPM')
     result.windows.push({ name: 'Usage', display: parts.join(' · '), aside: true })
   }
   return result
