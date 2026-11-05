@@ -4,7 +4,9 @@ import { apiBase } from '../src/config.mjs'
 import { mapUsage } from '../src/usage.mjs'
 
 const originalFetch = globalThis.fetch
-afterEach(() => { globalThis.fetch = originalFetch })
+afterEach(() => {
+  globalThis.fetch = originalFetch
+})
 
 test('API roots gain v1 while explicit prefixes are preserved', () => {
   for (const input of ['https://relay.example', ' https://relay.example/// ', 'https://relay.example/v1/']) {
@@ -38,23 +40,36 @@ test('saved account roots normalize across catalog, pagination, usage and forwar
   expect(loader.baseURL).toBe('https://relay.example/v1')
   expect((await loader.fetch(loader.baseURL + '/responses')).ok).toBe(true)
   await expect(loader.fetch('https://relay.example/responses')).rejects.toThrow('outside')
-  expect(visited).toEqual(['https://relay.example/v1/models', 'https://relay.example/v1/models?page=2',
-    'https://relay.example/v1/usage', 'https://relay.example/v1/responses'])
+  expect(visited).toEqual([
+    'https://relay.example/v1/models',
+    'https://relay.example/v1/models?page=2',
+    'https://relay.example/v1/usage',
+    'https://relay.example/v1/responses',
+  ])
 })
 
 test('wallets use one native balance without fabricating progress', () => {
   for (const balance of [0, -1.234, 12.345, 9999999385.337]) {
     const usage = mapUsage({ isValid: true, balance })
-    expect(usage.balance).toBe(balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' USD')
+    expect(usage.balance).toBe(
+      balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' USD',
+    )
     expect(usage.windows).toEqual([])
   }
   expect(mapUsage({ isValid: true, balance: 12.3456, unit: 'EUR' }).balance).toBe('12.35 EUR')
 })
 
 test('costs display two decimals without presenting small nonzero charges as zero', () => {
-  const data = { isValid: true, balance: 10, usage: {
-    today: { cost: 0.0001, requests: 12, total_tokens: 345 }, total: { actual_cost: 1.2345, requests: 26710 }, rpm: 2, tpm: 1000,
-  } }
+  const data = {
+    isValid: true,
+    balance: 10,
+    usage: {
+      today: { cost: 0.0001, requests: 12, total_tokens: 345 },
+      total: { actual_cost: 1.2345, requests: 26710 },
+      rpm: 2,
+      tpm: 1000,
+    },
+  }
   const usage = mapUsage(data)
   expect(usage.windows).toEqual([
     { name: 'Today', display: '<$0.01 · req 12 · 345 tok', aside: true },
@@ -68,10 +83,17 @@ test('costs display two decimals without presenting small nonzero charges as zer
 })
 
 test('real limits retain native progress and unknown usage remains unknown', () => {
-  const usage = mapUsage({ isValid: true, subscription: {
-    daily_limit_usd: 10, daily_usage_usd: 2, weekly_limit_usd: 100, monthly_limit_usd: 1000, monthly_usage_usd: 1200,
-  } })
-  expect(usage.windows[0]).toEqual({ name: '1 day', amount: 2, limit: 10, unit: 'USD', span: 86400 })
+  const usage = mapUsage({
+    isValid: true,
+    subscription: {
+      daily_limit_usd: 10,
+      daily_usage_usd: 2,
+      weekly_limit_usd: 100,
+      monthly_limit_usd: 1000,
+      monthly_usage_usd: 1200,
+    },
+  })
+  expect(usage.windows[0]).toEqual({ name: '1 day', amount: 2, limit: 10, unit: 'USD', span: 86400, used: 20 })
   expect(usage.windows[1]).toEqual({ name: 'Weekly', display: 'Limit $100.00 · usage unavailable', span: 604800 })
   expect(usage.windows[2]).toMatchObject({ amount: 1200, limit: 1000, unit: 'USD' })
   expect(usage.windows.every(window => window.aside === undefined)).toBe(true)
@@ -79,15 +101,21 @@ test('real limits retain native progress and unknown usage remains unknown', () 
 
 test('known period labels translate without interpreting arbitrary server names as object keys', () => {
   const windows = ['5h', '1d', '7d', '__proto__', 'constructor']
-  const usage = mapUsage({ isValid: true, mode: 'quota_limited',
-    rate_limits: windows.map(window => ({ window, used: 1, limit: 10 })) })
+  const usage = mapUsage({
+    isValid: true,
+    mode: 'quota_limited',
+    rate_limits: windows.map(window => ({ window, used: 1, limit: 10 })),
+  })
   expect(usage.windows.map(window => window.name)).toEqual(['5 hours', '1 day', '7 days', '__proto__', 'constructor'])
   expect(usage.windows.slice(3).every(window => window.span === undefined)).toBe(true)
 })
 
 test('normalized roots do not trigger fallback requests after upstream failure', async () => {
   const visited = []
-  globalThis.fetch = async url => { visited.push(String(url)); return new Response('', { status: 500 }) }
+  globalThis.fetch = async url => {
+    visited.push(String(url))
+    return new Response('', { status: 500 })
+  }
   const plugin = await TetPlugin({}, { baseURL: 'https://relay.example' })
   const auth = { type: 'api', key: 'synthetic-key' }
   await expect(plugin.provider.models({ models: {} }, { auth })).rejects.toThrow('HTTP 500')

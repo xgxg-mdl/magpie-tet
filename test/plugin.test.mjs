@@ -13,10 +13,16 @@ const createQueries = () => {
 }
 const originalFetch = globalThis.fetch
 const auth = { type: 'api', key: 'test-key-A', metadata: { baseURL: BASE } }
-afterEach(() => { globalThis.fetch = originalFetch })
+afterEach(() => {
+  globalThis.fetch = originalFetch
+})
 const catalog = { data: [{ id: 'gpt-6.1-sol', display_name: 'Sol' }] }
-const wallet = { isValid: true, mode: 'unrestricted', balance: 9999999443,
-  usage: { today: { actual_cost: 0, requests: 0, total_tokens: 50 }, total: { cost: 555 }, rpm: 14 } }
+const wallet = {
+  isValid: true,
+  mode: 'unrestricted',
+  balance: 9999999443,
+  usage: { today: { actual_cost: 0, requests: 0, total_tokens: 50 }, total: { cost: 555 }, rpm: 14 },
+}
 
 test('wallet does not invent percentage; costs and traffic are informational', () => {
   const result = mapUsage(wallet)
@@ -30,8 +36,13 @@ test('wallet does not invent percentage; costs and traffic are informational', (
   expect(() => mapUsage({})).toThrow()
 })
 test('quota enforces actual limits; missing usage stays unknown instead of becoming zero', () => {
-  const result = mapUsage({ isValid: true, mode: 'quota_limited', quota: { used: 101, limit: 100 },
-    rate_limits: [null, { window: '5h', limit: 10, reset_at: '2030-11-01T00:00:00Z' }], expires_at: '2030-12-01T00:00:00Z' })
+  const result = mapUsage({
+    isValid: true,
+    mode: 'quota_limited',
+    quota: { used: 101, limit: 100 },
+    rate_limits: [null, { window: '5h', limit: 10, reset_at: '2030-11-01T00:00:00Z' }],
+    expires_at: '2030-12-01T00:00:00Z',
+  })
   expect(result.windows[0]).toMatchObject({ amount: 101, limit: 100 })
   expect(result.windows[1]).toMatchObject({ span: 18000, resetsAt: '2030-11-01T00:00:00Z' })
   expect(result.windows[1].amount).toBeUndefined()
@@ -41,9 +52,26 @@ test('quota enforces actual limits; missing usage stays unknown instead of becom
   expect(result.until).toBe('2030-12-01T00:00:00Z')
 })
 test('subscription respects server resets and omits unconfigured limits and guessed month spans', () => {
-  const result = mapUsage({ isValid: true, subscription: { daily_usage_usd: 4, daily_limit_usd: 10,
-    daily_reset_at: '2030-11-01T00:00:00Z', weekly_limit_usd: null, monthly_usage_usd: 6, monthly_limit_usd: 100 } })
-  expect(result.windows[0]).toEqual({ name: '1 day', amount: 4, limit: 10, unit: 'USD', span: 86400, resetsAt: '2030-11-01T00:00:00Z' })
+  const result = mapUsage({
+    isValid: true,
+    subscription: {
+      daily_usage_usd: 4,
+      daily_limit_usd: 10,
+      daily_reset_at: '2030-11-01T00:00:00Z',
+      weekly_limit_usd: null,
+      monthly_usage_usd: 6,
+      monthly_limit_usd: 100,
+    },
+  })
+  expect(result.windows[0]).toEqual({
+    name: '1 day',
+    amount: 4,
+    limit: 10,
+    unit: 'USD',
+    span: 86400,
+    resetsAt: '2030-11-01T00:00:00Z',
+    used: 40,
+  })
   expect(result.windows[1].span).toBeUndefined()
   expect(result.windows[1].resetsAt).toBeUndefined()
 })
@@ -55,16 +83,31 @@ test('invalid sign-in and business expiry remain distinct', () => {
 })
 test('models only expose supported text families, exact IDs and known capacities', () => {
   const known = { limit: { context: 12345, output: 1000 }, cost: { input: 2 } }
-  const payload = { data: [...catalog.data, { id: 'gpt-image-2' }, { id: 'gpt-6-audio' },
-    { id: 'gpt-4o-audio-preview' }, { id: 'codex-auto-review' }] }
+  const payload = {
+    data: [
+      ...catalog.data,
+      { id: 'gpt-image-2' },
+      { id: 'gpt-6-audio' },
+      { id: 'gpt-4o-audio-preview' },
+      { id: 'codex-auto-review' },
+    ],
+  }
   const models = discoverModels(payload, { models: { 'gpt-6.1-sol': known } }, settings())
   expect(Object.keys(models)).toEqual(['gpt-6.1-sol'])
   expect(models['gpt-6.1-sol']).toMatchObject({ name: 'Sol', providerID: 'tet', ...known })
   expect(models['gpt-6.1-sol'].api).toEqual({ id: 'gpt-6.1-sol', url: BASE, npm: '@ai-sdk/openai' })
 })
 test('model overrides configure verified capabilities and exclude exact IDs', () => {
-  const opts = settings({ modelOverrides: { 'gpt-6.1-sol': { name: 'Custom Sol', imageInput: true,
-    limit: { context: 10000, output: 1000 }, reasoningLevels: ['low', 'high'] } } })
+  const opts = settings({
+    modelOverrides: {
+      'gpt-6.1-sol': {
+        name: 'Custom Sol',
+        imageInput: true,
+        limit: { context: 10000, output: 1000 },
+        reasoningLevels: ['low', 'high'],
+      },
+    },
+  })
   const model = discoverModels(catalog, { models: {} }, opts)['gpt-6.1-sol']
   expect(model.name).toBe('Custom Sol')
   expect(model.capabilities.input.image).toBe(true)
@@ -73,9 +116,13 @@ test('model overrides configure verified capabilities and exclude exact IDs', ()
   expect(discoverModels(catalog, { models: {} }, settings())['gpt-6.1-sol'].limit.context).toBe(0)
 })
 test('configuration rejects routing overrides and impossible limits before discovery', async () => {
-  for (const opts of [ { modelOverrides: { m: { api: 'https://example.com' } } },
-    { modelLimits: { m: { context: 1, output: 2 } } }, { queryTimeoutMs: 0 }, { showTraffic: 'yes' },
-    { modelOverrides: { m: { reasoningLevels: ['guess'] } } } ]) {
+  for (const opts of [
+    { modelOverrides: { m: { api: 'https://example.com' } } },
+    { modelLimits: { m: { context: 1, output: 2 } } },
+    { queryTimeoutMs: 0 },
+    { showTraffic: 'yes' },
+    { modelOverrides: { m: { reasoningLevels: ['guess'] } } },
+  ]) {
     await expect(TetPlugin({}, opts)).rejects.toThrow()
   }
   expect(settings({ modelLimits: { m: { context: 10, output: 2 } } }).modelOverrides.m.limit.context).toBe(10)
@@ -105,12 +152,24 @@ test('custom API base applies to config, paginated models, usage and forwarding'
   expect((await loader.fetch(baseURL + '/responses/compact')).status).toBe(200)
   await expect(loader.fetch(BASE + '/responses')).rejects.toThrow('outside')
   await expect(loader.fetch('https://relay.example/v1/responses')).rejects.toThrow('outside')
-  expect(visited).toEqual([baseURL + '/models', baseURL + '/models?page=2', baseURL + '/usage', baseURL + '/responses/compact'])
+  expect(visited).toEqual([
+    baseURL + '/models',
+    baseURL + '/models?page=2',
+    baseURL + '/usage',
+    baseURL + '/responses/compact',
+  ])
   await expect(loadCatalog(async () => ({ data: [], next: '/v1/models?page=2' }), baseURL)).rejects.toThrow('outside')
 })
 test('API base validation rejects credentials and non-HTTP endpoints', () => {
-  for (const baseURL of ['', 123, 'ftp://relay.example/v1', 'https://u:p@relay.example/v1',
-    'https://relay.example/v1?token=test', 'https://relay.example/v1#fragment', '/v1']) {
+  for (const baseURL of [
+    '',
+    123,
+    'ftp://relay.example/v1',
+    'https://u:p@relay.example/v1',
+    'https://relay.example/v1?token=test',
+    'https://relay.example/v1#fragment',
+    '/v1',
+  ]) {
     expect(() => settings({ baseURL })).toThrow()
   }
   expect(settings({ baseURL: ' https://relay.example/ ' }).baseURL).toBe('https://relay.example/v1')
@@ -122,7 +181,10 @@ test('unconfigured plugin loads but cannot query or forward without an explicit 
   expect(cfg.provider.tet.api).toBeUndefined()
   expect(readSettings().baseURL).toBeUndefined()
   let calls = 0
-  globalThis.fetch = async () => { calls++; throw new Error('must not fetch') }
+  globalThis.fetch = async () => {
+    calls++
+    throw new Error('must not fetch')
+  }
   const missing = { type: 'api', key: 'synthetic-key' }
   await expect(plugin.auth.loader(async () => missing)).rejects.toThrow('Configure an API base URL')
   await expect(plugin.provider.models({ models: {} }, { auth: missing })).rejects.toThrow('Configure an API base URL')
@@ -139,7 +201,10 @@ test('account address overrides package options and changing it invalidates old 
   expect(loader.baseURL).toBe(BASE)
   current = { ...auth, key: 'new-site-key', metadata: { baseURL: 'https://new-site.example/v1' } }
   let calls = 0
-  globalThis.fetch = async () => { calls++; throw new Error('must not fetch') }
+  globalThis.fetch = async () => {
+    calls++
+    throw new Error('must not fetch')
+  }
   await expect(loader.fetch(BASE + '/responses')).rejects.toThrow('URL changed')
   expect((await plugin.auth.loader(async () => current)).baseURL).toBe('https://new-site.example/v1')
   expect(calls).toBe(0)
@@ -173,7 +238,9 @@ test('safe model pagination reads all pages and rejects other origins, endpoints
 })
 test('cursor pagination requires progress', async () => {
   let calls = 0
-  const result = await loadCatalog(async () => ++calls === 1 ? { data: [{ id: 'a' }], has_more: true } : { data: [{ id: 'b' }] })
+  const result = await loadCatalog(async () =>
+    ++calls === 1 ? { data: [{ id: 'a' }], has_more: true } : { data: [{ id: 'b' }] },
+  )
   expect(result.data.length).toBe(2)
   await expect(loadCatalog(async () => ({ data: [], has_more: true }))).rejects.toThrow('cursor')
 })
@@ -192,7 +259,9 @@ test('catalog failure is visible to host rather than reported as successful refr
   const plugin = await TetPlugin()
   globalThis.fetch = async () => new Response('bad json')
   await expect(plugin.provider.models({ models: { cached: {} } }, { auth })).rejects.toThrow('JSON')
-  globalThis.fetch = async () => { throw new Error('secret network text') }
+  globalThis.fetch = async () => {
+    throw new Error('secret network text')
+  }
   await expect(plugin.provider.models({ models: {} }, { auth })).rejects.toThrow('query failed')
   expect(await plugin.provider.models({ models: { cached: {} } })).toEqual({})
 })
@@ -215,8 +284,13 @@ test('query responses have a size bound', async () => {
 test('concurrent queries merge within a key, never across keys, and do not retain results', async () => {
   const query = createQueries()
   let calls = 0
-  globalThis.fetch = async () => { calls++; await new Promise(resolve => setTimeout(resolve, 5)); return Response.json(wallet) }
-  const a = query('/usage', auth, 1000), b = query('/usage', auth, 1000)
+  globalThis.fetch = async () => {
+    calls++
+    await new Promise(resolve => setTimeout(resolve, 5))
+    return Response.json(wallet)
+  }
+  const a = query('/usage', auth, 1000),
+    b = query('/usage', auth, 1000)
   expect(a).toBe(b)
   await Promise.all([a, b, query('/usage', { ...auth, key: 'test-key-B' }, 1000)])
   expect(calls).toBe(2)
@@ -239,41 +313,77 @@ test('loader reads replacement credentials and preserves stream, body, headers a
     expect(init.headers.has('x-api-key')).toBe(false)
     return upstream
   }
-  expect(await loader.fetch(BASE + '/responses', { method: 'POST', body: 'test-body', signal: controller.signal,
-    headers: { cookie: 'test-cookie', 'x-api-key': 'foreign-test-key', 'x-request-id': 'request-test' } })).toBe(upstream)
+  expect(
+    await loader.fetch(BASE + '/responses', {
+      method: 'POST',
+      body: 'test-body',
+      signal: controller.signal,
+      headers: { cookie: 'test-cookie', 'x-api-key': 'foreign-test-key', 'x-request-id': 'request-test' },
+    }),
+  ).toBe(upstream)
 })
 test('forwarding handles Request input and canceled signals without consuming response', async () => {
   const plugin = await TetPlugin()
   const loader = await plugin.auth.loader(async () => auth)
   const controller = new AbortController()
-  const request = new Request(BASE + '/responses', { method: 'POST', body: '{}', signal: controller.signal, headers: { cookie: 'test-cookie' } })
+  const request = new Request(BASE + '/responses', {
+    method: 'POST',
+    body: '{}',
+    signal: controller.signal,
+    headers: { cookie: 'test-cookie' },
+  })
   globalThis.fetch = async (input, init) => {
     const forwarded = new Request(input, init)
     expect(forwarded.headers.has('cookie')).toBe(false)
     expect(await forwarded.text()).toBe('{}')
-    return new Response(new ReadableStream({ start(c) { c.enqueue(new TextEncoder().encode('first')); c.close() } }))
+    return new Response(
+      new ReadableStream({
+        start(c) {
+          c.enqueue(new TextEncoder().encode('first'))
+          c.close()
+        },
+      }),
+    )
   }
   const response = await loader.fetch(request)
   expect(response.bodyUsed).toBe(false)
   expect(await response.text()).toBe('first')
   controller.abort()
-  globalThis.fetch = async (_input, init) => { init.signal.throwIfAborted() }
+  globalThis.fetch = async (_input, init) => {
+    init.signal.throwIfAborted()
+  }
   await expect(loader.fetch(BASE + '/responses', { signal: controller.signal })).rejects.toThrow()
 })
 test('forwarder refuses arbitrary paths, credential URLs and foreign hosts before network access', async () => {
   const plugin = await TetPlugin()
   const loader = await plugin.auth.loader(async () => auth)
-  globalThis.fetch = async () => { throw new Error('must not fetch') }
-  for (const url of ['https://example.com/v1/responses', BASE + '/models', BASE + '/responses/unknown', 'https://u:p@test-relay.example/v1/responses']) {
+  globalThis.fetch = async () => {
+    throw new Error('must not fetch')
+  }
+  for (const url of [
+    'https://example.com/v1/responses',
+    BASE + '/models',
+    BASE + '/responses/unknown',
+    'https://u:p@test-relay.example/v1/responses',
+  ]) {
     await expect(loader.fetch(url)).rejects.toThrow('outside')
   }
   expect(() => credentials({ type: 'api', key: 'a\nb' })).toThrow()
 })
 test('showTraffic toggle reads live host state without dropping structured model options', async () => {
   let visible = false
-  const plugin = await TetPlugin({ magpie: { option: (id, key) => {
-    expect(id).toBe('tet'); expect(key).toBe('show-traffic'); return visible
-  } } }, { modelOverrides: { 'gpt-6.1-sol': { name: 'Configured Sol' } } })
+  const plugin = await TetPlugin(
+    {
+      magpie: {
+        option: (id, key) => {
+          expect(id).toBe('tet')
+          expect(key).toBe('show-traffic')
+          return visible
+        },
+      },
+    },
+    { modelOverrides: { 'gpt-6.1-sol': { name: 'Configured Sol' } } },
+  )
   globalThis.fetch = async url => Response.json(url.endsWith('/usage') ? wallet : catalog)
   expect((await plugin.auth.usage(async () => auth)).windows[0].display).toBe('$0.00')
   visible = true
