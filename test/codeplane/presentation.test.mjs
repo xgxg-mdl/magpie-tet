@@ -181,9 +181,9 @@ test('presentation pairs periods, costs and operational metrics without repeated
     plan: 'Wallet',
     balance: '12.00 USD',
     windows: [
-      { name: 'Today', display: '$1.00 · req 2', aside: true },
-      { name: 'Total', display: '$3.00 · req 4', aside: true },
-      { name: 'Usage', display: '1 RPM · 2 TPM', aside: true },
+      { name: 'Today', display: '1.00 USD · 2 req', aside: true },
+      { name: 'Total', display: '3.00 USD · 4 req', aside: true },
+      { name: '实时速率', display: '1 RPM · 2 TPM', aside: true },
     ],
   }
   const codePlane = {
@@ -206,10 +206,10 @@ test('presentation pairs periods, costs and operational metrics without repeated
   expect(shown.windows.map(window => window.name)).toEqual([
     'Today',
     'Total',
-    'Usage',
+    '实时速率',
     'TET CodePlane 来源',
-    '示例分组 · 5h',
-    '示例分组 · 7d',
+    '5h',
+    '7d',
     '示例分组 · 并发',
     '示例分组 · 重置次数',
   ])
@@ -240,11 +240,43 @@ test('real key limits stay distinct and visible ahead of display-only group peri
   expect(shown.windows.map(window => window.name)).toEqual([
     '5 hours',
     'Today',
-    'Shared · 5h',
-    'Shared · 7d',
+    '5h',
+    '7d',
     'Shared · 并发',
     'Shared · 重置次数',
   ])
+})
+
+test('equal-allowance accounts expose common period names regardless of group names', () => {
+  const results = ['海能发', '智能体开发'].map((name, index) =>
+    presentCodePlaneUsage(
+      { plan: 'Wallet', windows: [] },
+      {
+        groups: [
+          {
+            id: index + 1,
+            name,
+            accounts: [
+              {
+                id: index + 5,
+                usage: {
+                  fiveHour: { utilization: 0 },
+                  sevenDay: { utilization: 90 + index * 3, resetsAt: '2099-01-01T00:00:00Z' },
+                },
+              },
+            ],
+          },
+        ],
+      },
+    ),
+  )
+  for (const result of results) {
+    expect(result.windows.slice(0, 2).map(window => window.name)).toEqual(['5h', '7d'])
+    expect(result.windows.slice(0, 2).every(window => window.aside && window.limit === undefined)).toBe(true)
+  }
+  expect(results.map(result => result.windows[1].used)).toEqual([90, 93])
+  expect(results[0].windows[2].name).toBe('海能发 · 并发')
+  expect(results[1].windows[2].name).toBe('智能体开发 · 并发')
 })
 
 test('coincident reset expirations are combined into the native expiry annotation', () => {

@@ -116,14 +116,14 @@ test('single-sided statistics and odd key limits do not shift TET CodePlane pair
     [{ name: 'Today', aside: true }],
     [
       { name: 'Total', aside: true },
-      { name: 'Usage', aside: true },
+      { name: '实时速率', aside: true },
     ],
     [{ name: 'Key limit' }, { name: 'Today', aside: true }, { name: 'Total', aside: true }],
   ]) {
     const shown = presentCodePlaneUsage({ windows }, { groups: [{ ...group, accounts: [account] }] })
-    const five = shown.windows.findIndex(window => window.name === '示例分组 · 5h')
+    const five = shown.windows.findIndex(window => window.name === '5h')
     expect(five % 2).toBe(0)
-    expect(shown.windows[five + 1].name).toBe('示例分组 · 7d')
+    expect(shown.windows[five + 1].name).toBe('7d')
     expect(shown.windows[five + 2]).toEqual({ name: '示例分组 · 并发', display: '2 / 10', aside: true })
     expect(shown.windows[five + 3].name).toBe('示例分组 · 重置次数')
     expect(shown.windows.slice(0, windows.length)).toEqual(windows)

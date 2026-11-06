@@ -98,7 +98,7 @@ test('unusable subscription data without a wallet reports missing usage informat
 test('a real subscription limit or expiry remains displayable without a wallet', () => {
   const unknown = mapUsage({ isValid: true, subscription: { daily_limit_usd: 10 } })
   expect(unknown.error).toBeUndefined()
-  expect(unknown.windows).toEqual([{ name: '1 day', display: 'Limit $10.00 · usage unavailable', span: 86400 }])
+  expect(unknown.windows).toEqual([{ name: '1 day', display: 'Limit 10.00 USD · usage unavailable', span: 86400 }])
   const unlimited = mapUsage({ isValid: true, subscription: { expires_at: earlier } })
   expect(unlimited.until).toBe(earlier)
   expect(unlimited.error).toBeUndefined()

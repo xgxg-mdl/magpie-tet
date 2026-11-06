@@ -116,7 +116,7 @@ test('showTraffic toggle reads live host state without dropping structured model
     { modelOverrides: { 'gpt-6.1-sol': { name: 'Configured Sol' } } },
   )
   globalThis.fetch = async url => Response.json(url.endsWith('/usage') ? wallet : catalog)
-  expect((await plugin.auth.usage(async () => auth)).windows[0].display).toBe('$0.00')
+  expect((await plugin.auth.usage(async () => auth)).windows[0].display).toBe('0.00 USD')
   visible = true
   expect((await plugin.auth.usage(async () => auth)).windows[0].display).toContain('50 tok')
   expect((await plugin.provider.models({ models: {} }, { auth }))['gpt-6.1-sol'].name).toBe('Configured Sol')

@@ -25,13 +25,13 @@ test('costs display two decimals without presenting small nonzero charges as zer
   }
   const usage = mapUsage(data)
   expect(usage.windows).toEqual([
-    { name: 'Today', display: '<$0.01 · req 12 / 345 tok', aside: true },
-    { name: 'Total', display: '$1.23 · req 26,710', aside: true },
-    { name: 'Usage', display: '2 RPM · 1K TPM', aside: true },
+    { name: 'Today', display: '<0.01 USD · 12 req / 345 tok', aside: true },
+    { name: 'Total', display: '1.23 USD · 26.7K req', aside: true },
+    { name: '实时速率', display: '2 RPM · 1K TPM', aside: true },
   ])
   expect(mapUsage(data, { showTraffic: false }).windows).toEqual([
-    { name: 'Today', display: '<$0.01', aside: true },
-    { name: 'Total', display: '$1.23', aside: true },
+    { name: 'Today', display: '<0.01 USD', aside: true },
+    { name: 'Total', display: '1.23 USD', aside: true },
   ])
 })
 
@@ -47,7 +47,7 @@ test('real limits retain native progress and unknown usage remains unknown', () 
     },
   })
   expect(usage.windows[0]).toEqual({ name: '1 day', amount: 2, limit: 10, unit: 'USD', span: 86400, used: 20 })
-  expect(usage.windows[1]).toEqual({ name: 'Weekly', display: 'Limit $100.00 · usage unavailable', span: 604800 })
+  expect(usage.windows[1]).toEqual({ name: 'Weekly', display: 'Limit 100.00 USD · usage unavailable', span: 604800 })
   expect(usage.windows[2]).toMatchObject({ amount: 1200, limit: 1000, unit: 'USD' })
   expect(usage.windows.every(window => window.aside === undefined)).toBe(true)
 })
@@ -62,9 +62,23 @@ test('large token counts stay compact and within the host two-part display contr
       tpm: 5382799,
     },
   })
-  expect(usage.windows[0].display).toBe('$152.47 · req 1,207 / 26.5M tok')
+  expect(usage.windows[0].display).toBe('152.47 USD · 1.2K req / 26.5M tok')
   expect(usage.windows[0].display.split(' · ')).toHaveLength(2)
   expect(usage.windows[1].display).toBe('14 RPM · 5.4M TPM')
+})
+
+test('request counts and rates share compact suffixes at thousand and million boundaries', () => {
+  for (const [value, shown] of [
+    [0, '0'],
+    [914, '914'],
+    [1000, '1K'],
+    [29297, '29.3K'],
+    [1000000, '1M'],
+  ]) {
+    const usage = mapUsage({ isValid: true, balance: 0, usage: { today: { cost: 0, requests: value }, rpm: value } })
+    expect(usage.windows[0].display).toBe('0.00 USD · ' + shown + ' req')
+    expect(usage.windows[1]).toEqual({ name: '实时速率', display: shown + ' RPM', aside: true })
+  }
 })
 
 test('known period labels translate without interpreting arbitrary server names as object keys', () => {

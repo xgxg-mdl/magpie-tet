@@ -87,9 +87,9 @@ test('TET CodePlane and API credentials stay isolated and traffic toggles do not
   const auth = legacyAuth({ key: 'synthetic-api-key', token: sessionToken })
   const result = await plugin.auth.usage(async () => auth)
   expect(result.balance).toBe('12.00 USD')
-  expect(result.windows.find(window => window.name === 'Today').display).toBe('$1.00')
+  expect(result.windows.find(window => window.name === 'Today').display).toBe('1.00 USD')
   const windows = ['5h', '7d', '重置次数'].map(name =>
-    result.windows.find(window => window.name === 'Shared · ' + name),
+    result.windows.find(window => window.name === (name === '重置次数' ? 'Shared · ' + name : name)),
   )
   expect(windows[0].used).toBe(0)
   expect(windows[1].used).toBe(55)
@@ -157,7 +157,7 @@ test('slow TET CodePlane queries use a short independent budget and preserve a c
     }
     const result = await work
     expect(result.balance).toBe('12.00 USD')
-    expect(result.windows.find(window => window.name === 'Today').display).toBe('$1.00 · req 2')
+    expect(result.windows.find(window => window.name === 'Today').display).toBe('1.00 USD · 2 req')
     expect(result.windows.find(window => window.name === 'TET CodePlane 分组')).toEqual({
       name: 'TET CodePlane 分组',
       display: 'TET CodePlane 查询超时或连接失败',

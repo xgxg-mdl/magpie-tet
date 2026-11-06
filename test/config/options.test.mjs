@@ -15,11 +15,11 @@ test('unset host options preserve the package traffic default', async () => {
       key: 'synthetic-key',
       metadata: { baseURL: 'https://test.example/v1' },
     })
-    expect((await plugin.auth.usage(getAuth)).windows[0].display).toBe('$1.00')
+    expect((await plugin.auth.usage(getAuth)).windows[0].display).toBe('1.00 USD')
     visible = true
     expect((await plugin.auth.usage(getAuth)).windows[0].display).toContain('3 tok')
     visible = false
-    expect((await plugin.auth.usage(getAuth)).windows[0].display).toBe('$1.00')
+    expect((await plugin.auth.usage(getAuth)).windows[0].display).toBe('1.00 USD')
     visible = 'invalid'
     expect((await plugin.auth.usage(getAuth)).error).toBe('showTraffic must be boolean.')
   } finally {

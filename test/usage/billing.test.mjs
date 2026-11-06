@@ -103,7 +103,7 @@ test('formatting handles zero, negative adjustments and non-USD amounts consiste
     ]) {
       const usage = mapUsage({ isValid: true, unit, balance: value, usage: { today: { cost: value } } })
       expect(usage.balance).toBe(unit === 'USD' ? usd.replace('$', '') + ' USD' : eur)
-      expect(usage.windows[0].display).toBe(expected)
+      expect(usage.windows[0].display).toBe(unit === 'USD' ? expected.replace('$', '') + ' USD' : expected)
       expect(usage.windows[0].aside).toBe(true)
     }
   }
@@ -112,5 +112,5 @@ test('formatting handles zero, negative adjustments and non-USD amounts consiste
 test('unknown usage shows a formatted limit without rounding raw quota values', () => {
   const usage = mapUsage({ isValid: true, mode: 'quota_limited', balance: 1, quota: { limit: 12.3456 } })
   expect(usage.balance).toBe('1.00 USD')
-  expect(usage.windows).toEqual([{ name: 'API key quota', display: 'Limit $12.35 · usage unavailable' }])
+  expect(usage.windows).toEqual([{ name: 'API key quota', display: 'Limit 12.35 USD · usage unavailable' }])
 })

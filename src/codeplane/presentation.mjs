@@ -114,6 +114,8 @@ export function presentCodePlaneUsage(usage, codePlane) {
   if (!codePlane.groups.length) return { ...usage, windows: [...usage.windows, text('暂无可见分组')] }
   const groups = [...codePlane.groups].sort((a, b) => a.id - b.id)
   const groupLabels = sourceLabels(groups, id => '分组 ' + id)
+  // 单来源使用通用周期名，供宿主按等额账号取平均；多来源仍须保留归属。
+  const singleSource = groups.length === 1 && groups[0].accounts.length === 1
   const windows = []
   for (const group of groups) {
     // 同名分组仍需区分；单分组正常路径不展示任何内部编号。
@@ -128,7 +130,9 @@ export function presentCodePlaneUsage(usage, codePlane) {
     }
     if (accounts.length === 1) {
       const mapped = quotaReadings(accounts[0])
-      windows.push(...mapped.periods.map(window => ({ ...window, name: prefix + window.name })))
+      windows.push(
+        ...mapped.periods.map(window => ({ ...window, name: singleSource ? window.name : prefix + window.name })),
+      )
       windows.push({ ...capacity, name: prefix + '并发' })
       windows.push({ ...mapped.resets, name: prefix + mapped.resets.name })
     } else {

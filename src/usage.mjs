@@ -1,13 +1,10 @@
 const finite = value => typeof value === 'number' && Number.isFinite(value)
-const compactTokens = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format
+const compactCount = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format
 /** 只格式化展示值；不足一分的非零金额用边界表示，避免误报为零。 */
-function money(value, unit, currencySymbol = true) {
+function money(value, unit) {
   const small = value !== 0 && Math.abs(value) < 0.01
   const amount = small ? (value < 0 ? -0.01 : 0.01) : value === 0 ? 0 : value
-  const formatted =
-    unit === 'USD' && currencySymbol
-      ? amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
-      : amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + unit
+  const formatted = amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + unit
   return (small ? (value < 0 ? '>' : '<') : '') + formatted
 }
 const spans = { '5h': 18000, '1d': 86400, '7d': 604800 }
@@ -37,7 +34,7 @@ export function mapUsage(data, { showTraffic = true } = {}) {
       periods.some(([period]) => finite(sub[period + '_limit_usd']) && sub[period + '_limit_usd'] > 0))
   /** 钱包属于账户，额度属于当前密钥或订阅；并存时不能互相遮蔽或相加。 */
   const hasWallet = finite(data.balance)
-  if (hasWallet) result.balance = money(data.balance, unit, false)
+  if (hasWallet) result.balance = money(data.balance, unit)
   const addLimit = (name, used, limit, extra = {}) => {
     if (!finite(limit) || limit <= 0) return
     /** 宿主会把缺少 amount 的数值窗口归零，未知用量必须用纯展示窗口表达。 */
@@ -85,17 +82,17 @@ export function mapUsage(data, { showTraffic = true } = {}) {
     if (!finite(cost)) continue
     const details = [money(cost, unit)]
     const traffic = []
-    if (showTraffic && finite(stats.requests)) traffic.push('req ' + stats.requests.toLocaleString('en-US'))
-    if (showTraffic && finite(stats.total_tokens)) traffic.push(compactTokens(stats.total_tokens) + ' tok')
+    if (showTraffic && finite(stats.requests)) traffic.push(compactCount(stats.requests) + ' req')
+    if (showTraffic && finite(stats.total_tokens)) traffic.push(compactCount(stats.total_tokens) + ' tok')
     // 宿主只显示以“ · ”分开的前两段，流量明细放在同一段，避免 Token 信息丢失。
     if (traffic.length) details.push(traffic.join(' / '))
     result.windows.push({ name, display: details.join(' · '), aside: true })
   }
   if (showTraffic && (finite(data.usage?.rpm) || finite(data.usage?.tpm))) {
     const parts = []
-    if (finite(data.usage.rpm)) parts.push(data.usage.rpm.toLocaleString('en-US') + ' RPM')
-    if (finite(data.usage.tpm)) parts.push(compactTokens(data.usage.tpm) + ' TPM')
-    result.windows.push({ name: 'Usage', display: parts.join(' · '), aside: true })
+    if (finite(data.usage.rpm)) parts.push(compactCount(data.usage.rpm) + ' RPM')
+    if (finite(data.usage.tpm)) parts.push(compactCount(data.usage.tpm) + ' TPM')
+    result.windows.push({ name: '实时速率', display: parts.join(' · '), aside: true })
   }
   return result
 }
