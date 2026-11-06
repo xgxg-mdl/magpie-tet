@@ -1,5 +1,6 @@
 import { apiBase } from './config.mjs'
 import { httpDetails } from './errors.mjs'
+import { requestProtocol } from './protocols.mjs'
 
 export function credentials(auth) {
   if (
@@ -84,21 +85,20 @@ export async function forward(input, init, getAuth, baseURL) {
   const url = new URL(input instanceof Request ? input.url : input)
   const base = new URL(baseURL)
   const prefix = base.pathname.replace(/\/+$/, '')
-  if (
-    url.origin !== base.origin ||
-    url.username ||
-    url.password ||
-    url.hash ||
-    ![prefix + '/responses', prefix + '/responses/compact'].includes(url.pathname)
-  ) {
-    throw new Error('TET refused a request outside its Responses API.')
+  const protocol = url.pathname.startsWith(prefix + '/')
+    ? requestProtocol(url.pathname.slice(prefix.length))
+    : undefined
+  if (url.origin !== base.origin || url.username || url.password || url.hash || !protocol) {
+    throw new Error('TET refused a request outside its supported model APIs.')
   }
   const key = credentials(await getAuth())
   const headers = new Headers(input instanceof Request ? input.headers : undefined)
   new Headers(init?.headers).forEach((value, name) => headers.set(name, value))
   for (const name of ['authorization', 'proxy-authorization', 'cookie', 'x-api-key', 'x-goog-api-key', 'host'])
     headers.delete(name)
-  headers.set('authorization', 'Bearer ' + key)
+  if (protocol === 'anthropic-messages') headers.set('x-api-key', key)
+  else if (protocol === 'google-generative-ai') headers.set('x-goog-api-key', key)
+  else headers.set('authorization', 'Bearer ' + key)
   /** 保留原始正文、取消信号和 Response 流，不擅自改写 store、工具调用或推理参数。 */
   return fetch(input, { ...init, headers, redirect: 'error' })
 }

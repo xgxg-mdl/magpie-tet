@@ -94,7 +94,7 @@ export function installHostUpstream() {
         balance: slot === 'B' ? 56.78 : 12.34,
         usage: { today: { actual_cost: slot === 'B' ? 2 : 1, requests: 2, total_tokens: 50 }, rpm: 3 },
       })
-    if (url.endsWith('/responses'))
+    if (url.endsWith('/responses') || url.endsWith('/chat/completions'))
       return Response.json({ accountMarker: slot, received: JSON.parse(init.body || '{}') })
     throw new Error('Unexpected test endpoint')
   }

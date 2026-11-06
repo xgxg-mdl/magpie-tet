@@ -1,4 +1,5 @@
-import { apiBase, PROVIDER, SDK } from './config.mjs'
+import { apiBase, PROVIDER } from './config.mjs'
+import { modelProtocol, MODALITIES, PROTOCOLS } from './protocols.mjs'
 
 /** 服务只返回模型标识；未核实的容量和推理档位保持未知，能力由已有元数据或显式配置补充。 */
 export function discoverModels(payload, provider, options) {
@@ -6,17 +7,19 @@ export function discoverModels(payload, provider, options) {
   const excluded = new Set(options.excludeModels)
   return Object.fromEntries(
     payload.data
-      .filter(
-        model =>
-          typeof model?.id === 'string' &&
-          /^gpt-[56](?:[.-]|$)/.test(model.id) &&
-          !/(?:image|audio|realtime)/i.test(model.id) &&
-          !excluded.has(model.id),
-      )
+      .filter(model => typeof model?.id === 'string' && model.id.trim().length > 0 && !excluded.has(model.id))
       .map(model => {
         const existing = Object.hasOwn(provider.models ?? {}, model.id) ? provider.models[model.id] : {}
         const override = Object.hasOwn(options.modelOverrides, model.id) ? options.modelOverrides[model.id] : {}
         const capabilities = existing?.capabilities ?? {}
+        const modalities = direction =>
+          override.modalities?.[direction] === undefined
+            ? { ...capabilities[direction] }
+            : Object.fromEntries(MODALITIES.map(kind => [kind, override.modalities[direction].includes(kind)]))
+        const input = modalities('input')
+        const output = modalities('output')
+        if (override.imageInput !== undefined && override.modalities?.input === undefined)
+          input.image = override.imageInput
         /** 目录名称不是能力证据；显式档位可开启推理，已有禁用声明仍优先。 */
         const reasoning = override.reasoning ?? capabilities.reasoning ?? Boolean(override.reasoningLevels?.length)
         return [
@@ -27,20 +30,19 @@ export function discoverModels(payload, provider, options) {
             providerID: PROVIDER,
             status: 'active',
             name: override.name ?? model.display_name ?? model.name ?? existing?.name ?? model.id,
-            api: { id: model.id, url: options.baseURL, npm: SDK },
+            api: { id: model.id, url: options.baseURL, npm: PROTOCOLS[modelProtocol(existing, override, options)] },
             limit: override.limit ?? existing?.limit ?? { context: 0, output: 0 },
             capabilities: {
               ...capabilities,
               temperature: override.temperature ?? capabilities.temperature ?? false,
               reasoning,
               toolcall: override.toolCall ?? capabilities.toolcall ?? false,
-              attachment: override.imageInput ?? capabilities.input?.image ?? false,
-              input: {
-                ...capabilities.input,
-                text: true,
-                image: override.imageInput ?? capabilities.input?.image ?? false,
-              },
-              output: { text: true, image: false, audio: false, video: false, pdf: false },
+              attachment:
+                override.modalities?.input !== undefined || override.imageInput !== undefined
+                  ? MODALITIES.some(kind => kind !== 'text' && input[kind] === true)
+                  : (capabilities.attachment ?? MODALITIES.some(kind => kind !== 'text' && input[kind] === true)),
+              input,
+              output,
             },
             variants: !reasoning
               ? {}

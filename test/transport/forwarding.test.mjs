@@ -76,9 +76,61 @@ test('forwarder refuses arbitrary paths, credential URLs and foreign hosts befor
     'https://example.com/v1/responses',
     BASE + '/models',
     BASE + '/responses/unknown',
+    BASE + '/messages/count_tokens',
+    BASE + '/images/generations',
+    BASE + '/models/custom:delete',
+    BASE + '/models/nested/custom:generateContent',
+    BASE + '-other/chat/completions',
     'https://u:p@test-relay.example/v1/responses',
   ]) {
     await expect(loader.fetch(url)).rejects.toThrow('outside')
   }
   expect(() => credentials({ type: 'api', key: 'a\nb' })).toThrow()
+})
+
+test('protocol forwarding uses current credentials with native headers and preserves the response without retries', async () => {
+  const plugin = await TetPlugin()
+  let currentAuth = auth
+  const loader = await plugin.auth.loader(async () => currentAuth)
+  currentAuth = { ...auth, key: 'replacement-test-key' }
+  for (const [path, header] of [
+    ['/responses/compact', 'authorization'],
+    ['/chat/completions', 'authorization'],
+    ['/messages', 'x-api-key'],
+    ['/models/custom:generateContent', 'x-goog-api-key'],
+    ['/models/custom:streamGenerateContent?alt=sse', 'x-goog-api-key'],
+  ]) {
+    let calls = 0
+    const controller = new AbortController()
+    const upstream = new Response('synthetic-stream', { status: 403 })
+    globalThis.fetch = async (url, init) => {
+      calls++
+      expect(url).toBe(BASE + path)
+      expect(init.body).toBe('original-body')
+      expect(init.signal).toBe(controller.signal)
+      expect(init.redirect).toBe('error')
+      expect(init.headers.get('anthropic-version')).toBe('2023-06-01')
+      expect(init.headers.has('cookie')).toBe(false)
+      for (const candidate of ['authorization', 'x-api-key', 'x-goog-api-key'])
+        expect(init.headers.get(candidate)).toBe(
+          candidate === header ? (header === 'authorization' ? 'Bearer ' : '') + currentAuth.key : null,
+        )
+      return upstream
+    }
+    const response = await loader.fetch(BASE + path, {
+      method: 'POST',
+      body: 'original-body',
+      signal: controller.signal,
+      headers: {
+        authorization: 'old',
+        'x-api-key': 'old',
+        'x-goog-api-key': 'old',
+        cookie: 'old',
+        'anthropic-version': '2023-06-01',
+      },
+    })
+    expect(response).toBe(upstream)
+    expect(response.bodyUsed).toBe(false)
+    expect(calls).toBe(1)
+  }
 })

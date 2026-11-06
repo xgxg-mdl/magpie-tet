@@ -1,6 +1,7 @@
+import { DEFAULT_PROTOCOL, MODALITIES, PROTOCOLS } from './protocols.mjs'
+
 export const PROVIDER = 'tet'
 export const NAME = 'TET'
-export const SDK = '@ai-sdk/openai'
 
 const record = value => value !== null && typeof value === 'object' && !Array.isArray(value)
 
@@ -30,6 +31,9 @@ export function accountBase(auth, options) {
 export function settings(value = {}) {
   if (!record(value)) throw new Error('TET options must be an object.')
   const baseURL = value.baseURL === undefined ? undefined : apiBase(value.baseURL)
+  const defaultProtocol = value.defaultProtocol ?? DEFAULT_PROTOCOL
+  if (typeof defaultProtocol !== 'string' || !Object.hasOwn(PROTOCOLS, defaultProtocol))
+    throw new Error('Unsupported default protocol.')
   const queryTimeoutMs = value.queryTimeoutMs ?? 15000
   if (!Number.isInteger(queryTimeoutMs) || queryTimeoutMs < 1000 || queryTimeoutMs > 60000) {
     throw new Error('queryTimeoutMs must be an integer between 1000 and 60000.')
@@ -49,12 +53,41 @@ export function settings(value = {}) {
           !record(override) ||
           Object.keys(override).some(
             key =>
-              !['name', 'limit', 'temperature', 'reasoning', 'toolCall', 'imageInput', 'reasoningLevels'].includes(key),
+              ![
+                'name',
+                'limit',
+                'temperature',
+                'reasoning',
+                'toolCall',
+                'imageInput',
+                'reasoningLevels',
+                'protocol',
+                'modalities',
+              ].includes(key),
           )
         ) {
           throw new Error('Unsupported model override for ' + id)
         }
         const checked = { ...override }
+        if (
+          'protocol' in checked &&
+          (typeof checked.protocol !== 'string' || !Object.hasOwn(PROTOCOLS, checked.protocol))
+        )
+          throw new Error('Unsupported model protocol.')
+        if ('modalities' in checked) {
+          if (
+            !record(checked.modalities) ||
+            Object.keys(checked.modalities).some(key => !['input', 'output'].includes(key))
+          )
+            throw new Error('Invalid model modalities.')
+          checked.modalities = Object.fromEntries(
+            Object.entries(checked.modalities).map(([direction, kinds]) => {
+              if (!Array.isArray(kinds) || kinds.some(kind => !MODALITIES.includes(kind)))
+                throw new Error('Invalid model modalities.')
+              return [direction, [...new Set(kinds)]]
+            }),
+          )
+        }
         for (const key of ['temperature', 'reasoning', 'toolCall', 'imageInput']) {
           if (key in checked && typeof checked[key] !== 'boolean') throw new Error(key + ' must be boolean.')
         }
@@ -99,5 +132,12 @@ export function settings(value = {}) {
   }
   const showTraffic = value.showTraffic ?? true
   if (typeof showTraffic !== 'boolean') throw new Error('showTraffic must be boolean.')
-  return { baseURL, queryTimeoutMs, excludeModels: [...excludeModels], modelOverrides: overrides, showTraffic }
+  return {
+    baseURL,
+    defaultProtocol,
+    queryTimeoutMs,
+    excludeModels: [...excludeModels],
+    modelOverrides: overrides,
+    showTraffic,
+  }
 }

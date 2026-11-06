@@ -36,7 +36,11 @@ const sse = text => new Response(text, { headers: { 'content-type': 'text/event-
 test('read-only probe exercises plugin hooks and never sends generation requests', async () => {
   const requests = upstream()
   const result = await probeRelay(options)
-  expect(result).toEqual({ pluginModels: [model], usage: { ok: true, windows: 0 }, generation: 'skipped' })
+  expect(result).toEqual({
+    pluginModels: [model, 'gpt-image-2'],
+    usage: { ok: true, windows: 0 },
+    generation: 'skipped',
+  })
   expect(requests.map(request => request.url)).toEqual([baseURL + '/models', baseURL + '/usage'])
 })
 
@@ -73,8 +77,8 @@ test('model discovery and usage failures never count as a successful read-only p
   await expect(probeRelay(options)).rejects.toThrow('usage probe failed')
 })
 
-test('empty or fully filtered model catalogs cannot pass the read-only probe', async () => {
-  for (const data of [[], [{ id: 'gpt-image-2' }]]) {
+test('empty catalogs or catalogs without valid IDs cannot pass the read-only probe', async () => {
+  for (const data of [[], [{ id: '' }, { id: null }, null]]) {
     const requests = []
     globalThis.fetch = async url => {
       requests.push(url)

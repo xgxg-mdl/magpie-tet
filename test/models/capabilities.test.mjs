@@ -17,7 +17,8 @@ test('catalog names do not advertise unverified optional capabilities', () => {
     reasoning: false,
     toolcall: false,
     attachment: false,
-    input: { text: true, image: false },
+    input: {},
+    output: {},
   })
   expect(model.variants).toEqual({})
 })

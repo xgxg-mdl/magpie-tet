@@ -1,6 +1,6 @@
 # TET for Magpie
 
-Magpie 的 TET 中转供应商插件，支持 GPT-5/6 模型发现、OpenAI Responses 转发、余额与用量查询。无运行时依赖，无需构建。
+Magpie 的 TET 中转供应商插件，支持账号模型目录发现、按模型配置调用协议、余额与用量查询。无运行时依赖，无需构建。
 
 TET CodePlane 提供账户认证、网关配置与共享资源查询，插件通过它取得账号登录信息和共享额度。
 
@@ -36,18 +36,21 @@ TET CodePlane 共享额度来自登录账号可见的分组及上游，不代表
 
 供应商设置中的 **Show traffic statistics** 可控制流量统计展示。高级选项在插件包的 `options` 中设置，修改后重载插件：
 
-| 选项             | 默认值  | 用途                               |
-| ---------------- | ------- | ---------------------------------- |
-| `queryTimeoutMs` | `15000` | 模型及用量查询超时，单位毫秒       |
-| `showTraffic`    | `true`  | 流量统计开关初始值                 |
-| `excludeModels`  | `[]`    | 按模型 ID 隐藏模型                 |
-| `modelOverrides` | `{}`    | 配置模型名称、容量、能力和推理档位 |
+| 选项              | 默认值             | 用途                               |
+| ----------------- | ------------------ | ---------------------------------- |
+| `queryTimeoutMs`  | `15000`            | 模型及用量查询超时，单位毫秒       |
+| `showTraffic`     | `true`             | 流量统计开关初始值                 |
+| `excludeModels`   | `[]`               | 按模型 ID 隐藏模型                 |
+| `defaultProtocol` | `openai-responses` | 未指定协议时的兼容默认值           |
+| `modelOverrides`  | `{}`               | 配置模型名称、容量、能力和推理档位 |
 
 ## 支持范围
 
-插件通过 `/models` 发现 GPT-5/6 文本模型，通过 `/responses` 转发请求，通过 `/usage` 查询余额与用量。不提供 Claude/Gemini 专用协议、图片生成、音频或实时模型入口。
+插件通过 `/models` 发现账号可见的模型，不按品牌、版本或模态名称过滤，通过 `/usage` 查询余额与用量。可配置 Responses、Chat Completions、Anthropic Messages 和 Gemini GenerateContent 协议，由 Magpie 负责协议适配；实际可用性取决于中转站、模型与宿主支持。
 
-模型目录不保证所有能力可用。插件优先采用显式配置和宿主已有信息，未知能力默认不声明；工具调用、图片输入等实测范围见[服务能力与验证边界](https://github.com/xgxg-mdl/magpie-tet/blob/main/docs/capabilities.md)。
+为兼容已有配置，未知协议默认使用 Responses；这不是对目录模型的兼容性保证。当前 TET 目录未提供可靠协议信息，需要按站点设置 `defaultProtocol` 或按模型设置 `modelOverrides[id].protocol`，见[登录与配置](https://github.com/xgxg-mdl/magpie-tet/blob/main/docs/configuration.md)。插件不提供独立的图片生成、音频或实时接口；这些模型仍保留在目录中，可用协议和能力需另行确认。
+
+模型目录不保证所有能力可用。插件优先采用显式配置和宿主已有信息，未知输入输出模态及可选能力不声明，也不会统一覆盖为文本输出；工具调用、图片输入等实测范围见[服务能力与验证边界](https://github.com/xgxg-mdl/magpie-tet/blob/main/docs/capabilities.md)。
 
 ## 开发
 

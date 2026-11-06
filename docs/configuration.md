@@ -47,28 +47,52 @@ TET CodePlane 查询最多使用 5 秒；配置的查询超时更短时使用更
   "queryTimeoutMs": 15000,
   "showTraffic": true,
   "excludeModels": [],
+  "defaultProtocol": "openai-responses",
   "modelOverrides": {
     "your-model-id": {
       "name": "Custom model name",
+      "protocol": "openai-chat",
       "limit": { "context": 200000, "output": 32000 },
       "temperature": false,
       "reasoning": true,
       "toolCall": true,
-      "imageInput": true,
+      "modalities": { "input": ["text", "image"], "output": ["text"] },
       "reasoningLevels": ["low", "medium", "high"]
     }
   }
 }
 ```
 
-| 选项             | 默认值  | 约束                                        |
-| ---------------- | ------- | ------------------------------------------- |
-| `queryTimeoutMs` | `15000` | 1000–60000 毫秒，仅限制查询，不限制生成时长 |
-| `showTraffic`    | `true`  | 流量展示初始值；宿主保存的供应商开关优先    |
-| `excludeModels`  | `[]`    | 按真实模型 ID 隐藏模型                      |
-| `modelOverrides` | `{}`    | 覆盖已有模型的名称、容量、能力和推理档位    |
+| 选项              | 默认值             | 约束                                        |
+| ----------------- | ------------------ | ------------------------------------------- |
+| `queryTimeoutMs`  | `15000`            | 1000–60000 毫秒，仅限制查询，不限制生成时长 |
+| `showTraffic`     | `true`             | 流量展示初始值；宿主保存的供应商开关优先    |
+| `excludeModels`   | `[]`               | 按真实模型 ID 隐藏模型                      |
+| `defaultProtocol` | `openai-responses` | 模型缺少已知协议时的默认协议                |
+| `modelOverrides`  | `{}`               | 覆盖已有模型的名称、容量、能力和推理档位    |
 
-覆盖不会创建模型或绕过 GPT-5/6 筛选。容量和档位示例只演示格式，应按服务提供的信息填写。
+覆盖不会创建目录中不存在的模型。插件不按模型品牌、版本和名称中的模态关键词过滤。容量、协议和档位示例只演示格式，应按服务提供的信息填写。
+
+### 调用协议
+
+当前 TET 目录只有模型标识等基础信息，没有可靠的协议或能力字段，插件不根据名称猜测。协议按模型的 `protocol` 显式覆盖、宿主已有模型的已知适配器、`defaultProtocol` 的顺序确定。兼容默认值 Responses 不代表所有模型都支持它；若要覆盖宿主已有适配器，使用模型级 `protocol`。
+
+| `protocol`             | Magpie 适配器               | 网关路径                                                             |
+| ---------------------- | --------------------------- | -------------------------------------------------------------------- |
+| `openai-responses`     | `@ai-sdk/openai`            | `/responses`、`/responses/compact`                                   |
+| `openai-chat`          | `@ai-sdk/openai-compatible` | `/chat/completions`                                                  |
+| `anthropic-messages`   | `@ai-sdk/anthropic`         | `/messages`                                                          |
+| `google-generative-ai` | `@ai-sdk/google`            | `/models/<id>:generateContent`、`/models/<id>:streamGenerateContent` |
+
+路径相对于账号的网关 API 地址；Gemini 若使用 `/v1beta` 等前缀，登录时填写完整 API 地址。协议改变不会自动猜测或替换网关前缀。各账号使用自己的地址与 Key，包级协议及模型覆盖配置由这些账号共用。不同账号需要为同名模型选择不同协议时，当前配置尚不支持账号级覆盖。
+
+Magpie 根据模型适配器构造请求并转换响应，插件保留正文、流和取消信号，只按协议注入当前账号的认证头。插件不在失败后自动重试、切换协议或模型，也不从目录元数据加载任意 SDK 或修改请求地址。当前站点的实测结果见[服务能力](capabilities.md)。
+
+### 输入输出模态
+
+`modalities.input` 和 `modalities.output` 各自接受 `text`、`image`、`audio`、`video`、`pdf` 数组。显式配置某个方向时，该数组完整替换此方向的宿主声明，空数组表示不支持这些模态；未配置的方向保留宿主信息，未知时不声明。图片、音频等输出声明还需要调用协议和宿主工作流支持，并不会自动启用专用生成端点。
+
+兼容 `imageInput` 布尔选项，但配置 `modalities.input` 时以后者为准。不提供单独的模态配置时，`imageInput` 只覆盖图片输入，不改写其他模态。
 
 兼容旧式容量配置 `modelLimits`，结构为 `{ "your-model-id": { "context": 200000, "output": 32000 } }`，可选 `input`。同一模型同时配置时，`modelOverrides[id].limit` 优先于 `modelLimits[id]`，其中 `id` 为真实模型 ID。容量必须为正安全整数，`output` 和可选 `input` 不得超过 `context`；新配置建议统一写在 `modelOverrides` 中。
 

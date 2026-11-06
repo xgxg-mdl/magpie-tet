@@ -1,11 +1,12 @@
 import { readFileSync } from 'node:fs'
-import { NAME, PROVIDER, SDK, settings, apiBase, accountBase } from './src/config.mjs'
+import { NAME, PROVIDER, settings, apiBase, accountBase } from './src/config.mjs'
 import { credentials, forward, createQueries } from './src/transport.mjs'
 import { discoverModels, loadCatalog } from './src/models.mjs'
 import { mapUsage } from './src/usage.mjs'
 import { safeDetails } from './src/errors.mjs'
 import { createCodePlane } from './src/codeplane/index.mjs'
 import { presentCodePlaneUsage } from './src/codeplane/presentation.mjs'
+import { PROTOCOLS } from './src/protocols.mjs'
 
 const icon =
   'data:image/svg+xml;base64,' + readFileSync(new URL('./assets/logo.svg', import.meta.url)).toString('base64')
@@ -25,7 +26,12 @@ export const TetPlugin = async (input = {}, options = {}) => {
     async config(cfg) {
       cfg.provider ??= {}
       const { baseURL } = currentSettings()
-      cfg.provider[PROVIDER] ??= { name: NAME, npm: SDK, ...(baseURL ? { api: baseURL } : {}), models: {} }
+      cfg.provider[PROVIDER] ??= {
+        name: NAME,
+        npm: PROTOCOLS[configured.defaultProtocol],
+        ...(baseURL ? { api: baseURL } : {}),
+        models: {},
+      }
     },
     auth: {
       provider: PROVIDER,

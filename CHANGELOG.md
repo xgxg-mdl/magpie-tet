@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 移除模型品牌、版本和模态名称过滤，保留账号模型目录；支持按模型配置 Responses、Chat Completions、Messages 和 Gemini 协议及输入输出模态，兼容默认 Responses。
 - 新增 TET CodePlane 账号登录、网关 Key 自动获取和会话恢复；保留已有 TET CodePlane 绑定的读取兼容。
 - 动态发现账号可见的分组及关联上游，展示共享周期额度、重置次数和分组并发。
 - 收敛为 TET CodePlane 账号登录和 API Key 两种方式，分开处理 TET CodePlane 会话和网关认证。

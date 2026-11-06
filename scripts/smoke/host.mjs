@@ -54,7 +54,9 @@ try {
   const init = await rpc('init', {
     authPath: join(sandbox, 'synthetic-auth.json'),
     directory: sandbox,
-    plugins: [{ spec: 'tet', target: root }],
+    plugins: [
+      { spec: 'tet', target: root, options: { modelOverrides: { 'gpt-6-luna': { protocol: 'openai-chat' } } } },
+    ],
   })
   assert.equal(init.plugins[0].error, undefined)
   const prompt = await rpc('prompt', { provider: 'tet', method: 1 })
@@ -81,6 +83,8 @@ try {
   assert.deepEqual(providers[0].accounts.find(a => a.key === first.account).models, ['gpt-6.1-sol'])
   assert.deepEqual(providers[0].accounts.find(a => a.key === second.account).models, ['gpt-6-luna'])
   assert.deepEqual(providers[0].models.map(m => m.id).sort(), ['gpt-6-luna', 'gpt-6.1-sol'])
+  assert.equal(providers[0].models.find(m => m.id === 'gpt-6-luna').npm, '@ai-sdk/openai-compatible')
+  assert.equal(providers[0].models.find(m => m.id === 'gpt-6.1-sol').npm, '@ai-sdk/openai')
   assert(providers[0].icon.startsWith('data:image/svg+xml;base64,'))
   assert.equal(providers[0].options[0].key, 'show-traffic')
   const [usage, secondUsage] = await Promise.all(
@@ -108,9 +112,12 @@ try {
     const response = await rpc('fetch', {
       provider: 'tet',
       account,
-      npm: '@ai-sdk/openai',
-      model: 'gpt-6.1-sol',
-      url: (account === first.account ? 'https://first.example/v1' : 'https://second.example/api/v1') + '/responses',
+      npm: account === first.account ? '@ai-sdk/openai' : '@ai-sdk/openai-compatible',
+      model: account === first.account ? 'gpt-6.1-sol' : 'gpt-6-luna',
+      url:
+        account === first.account
+          ? 'https://first.example/v1/responses'
+          : 'https://second.example/api/v1/chat/completions',
       body: '{}',
     })
     assert.equal(response.events.find(e => e.event === 'head').status, 200)

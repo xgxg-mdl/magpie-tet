@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test'
 import { discoverModels } from '../../src/models.mjs'
 import { BASE, settings, loadCatalog, catalog } from '../helpers/plugin.mjs'
 
-test('models only expose supported text families, exact IDs and known capacities', () => {
+test('models preserve catalog IDs across versions, brands and modalities without inferring support', () => {
   const known = { limit: { context: 12345, output: 1000 }, cost: { input: 2 } }
   const payload = {
     data: [
@@ -11,10 +11,24 @@ test('models only expose supported text families, exact IDs and known capacities
       { id: 'gpt-6-audio' },
       { id: 'gpt-4o-audio-preview' },
       { id: 'codex-auto-review' },
+      { id: 'gpt-7' },
+      { id: 'claude-custom' },
+      { id: '' },
+      { id: '   ' },
+      { id: null },
+      null,
     ],
   }
   const models = discoverModels(payload, { models: { 'gpt-6.1-sol': known } }, settings())
-  expect(Object.keys(models)).toEqual(['gpt-6.1-sol'])
+  expect(Object.keys(models)).toEqual([
+    'gpt-6.1-sol',
+    'gpt-image-2',
+    'gpt-6-audio',
+    'gpt-4o-audio-preview',
+    'codex-auto-review',
+    'gpt-7',
+    'claude-custom',
+  ])
   expect(models['gpt-6.1-sol']).toMatchObject({ name: 'Sol', providerID: 'tet', ...known })
   expect(models['gpt-6.1-sol'].api).toEqual({ id: 'gpt-6.1-sol', url: BASE, npm: '@ai-sdk/openai' })
 })
