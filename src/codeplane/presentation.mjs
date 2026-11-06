@@ -1,7 +1,7 @@
 const finite = value => typeof value === 'number' && Number.isFinite(value)
 const PERIODS = [
-  ['fiveHour', '5h', 18000],
-  ['sevenDay', '7d', 604800],
+  ['fiveHour', '5 hours', 18000],
+  ['sevenDay', '7 days', 604800],
 ]
 
 function timestamp(value) {
@@ -114,13 +114,11 @@ export function presentCodePlaneUsage(usage, codePlane) {
   if (!codePlane.groups.length) return { ...usage, windows: [...usage.windows, text('暂无可见分组')] }
   const groups = [...codePlane.groups].sort((a, b) => a.id - b.id)
   const groupLabels = sourceLabels(groups, id => '分组 ' + id)
-  // 单来源使用通用周期名，供宿主按等额账号取平均；多来源仍须保留归属。
-  const singleSource = groups.length === 1 && groups[0].accounts.length === 1
   const windows = []
   for (const group of groups) {
     // 同名分组仍需区分；单分组正常路径不展示任何内部编号。
     const groupName = groupLabels.get(group.id)
-    const prefix = groupName + ' · '
+    const prefix = groups.length === 1 ? '' : groupName + ' · '
     const accounts = [...group.accounts].sort((a, b) => a.id - b.id)
     const capacity = capacityReading(group.capacity ?? null)
     if (!accounts.length) {
@@ -131,7 +129,14 @@ export function presentCodePlaneUsage(usage, codePlane) {
     if (accounts.length === 1) {
       const mapped = quotaReadings(accounts[0])
       windows.push(
-        ...mapped.periods.map(window => ({ ...window, name: singleSource ? window.name : prefix + window.name })),
+        ...mapped.periods.map(window => ({
+          ...window,
+          // 与真实 Key 周期同名时保留来源，避免宿主把两类额度合并。
+          name:
+            !prefix && usage.windows.some(keyWindow => keyWindow.name === window.name)
+              ? groupName + ' · ' + window.name
+              : prefix + window.name,
+        })),
       )
       windows.push({ ...capacity, name: prefix + '并发' })
       windows.push({ ...mapped.resets, name: prefix + mapped.resets.name })

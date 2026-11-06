@@ -51,8 +51,8 @@ test('an explicitly reported current zero remains visible after the old reset ti
 test('group windows preserve measured zero and full readings without affecting routing', () => {
   const windows = mapCodePlaneUsage({ usage, credits: { availableResetCount: 0 } }, context)
   expect(windows).toEqual([
-    { name: '5h', used: 0, span: 18000, resetsAt: soon, aside: true },
-    { name: '7d', used: 100, span: 604800, resetsAt: later, aside: true },
+    { name: '5 hours', used: 0, span: 18000, resetsAt: soon, aside: true },
+    { name: '7 days', used: 100, span: 604800, resetsAt: later, aside: true },
     { name: '重置次数', display: '0 次', aside: true },
   ])
   expect(windows.every(window => window.amount === undefined && window.limit === undefined)).toBe(true)
@@ -208,10 +208,10 @@ test('presentation pairs periods, costs and operational metrics without repeated
     'Total',
     '实时速率',
     '分组',
-    '5h',
-    '7d',
-    '示例分组 · 并发',
-    '示例分组 · 重置次数',
+    '5 hours',
+    '7 days',
+    '并发',
+    '重置次数',
   ])
   expect(shown.windows).toHaveLength(8)
   expect(shown.plan).toBe('Wallet')
@@ -261,10 +261,10 @@ test('real key limits stay distinct and visible ahead of display-only group peri
   expect(shown.windows.map(window => window.name)).toEqual([
     '5 hours',
     'Today',
-    '5h',
-    '7d',
-    'Shared · 并发',
-    'Shared · 重置次数',
+    'Shared · 5 hours',
+    '7 days',
+    '并发',
+    '重置次数',
   ])
 })
 
@@ -292,12 +292,54 @@ test('equal-allowance accounts expose common period names regardless of group na
     ),
   )
   for (const result of results) {
-    expect(result.windows.slice(0, 2).map(window => window.name)).toEqual(['5h', '7d'])
+    expect(result.windows.slice(0, 2).map(window => window.name)).toEqual(['5 hours', '7 days'])
     expect(result.windows.slice(0, 2).every(window => window.aside && window.limit === undefined)).toBe(true)
   }
   expect(results.map(result => result.windows[1].used)).toEqual([90, 93])
-  expect(results[0].windows[2].name).toBe('海能发 · 并发')
-  expect(results[1].windows[2].name).toBe('智能体开发 · 并发')
+  expect(results[0].windows[2].name).toBe('并发')
+  expect(results[1].windows[2].name).toBe('并发')
+})
+
+test('one group keeps upstream names for periods and reset counts but not group concurrency', () => {
+  const shown = presentCodePlaneUsage(
+    { windows: [] },
+    {
+      groups: [
+        {
+          id: 7,
+          name: '共享组',
+          capacity: { used: 2, max: 10 },
+          accounts: [
+            { id: 1, name: 'A', usage },
+            { id: 2, name: 'B', usage },
+          ],
+        },
+      ],
+    },
+  )
+  expect(shown.windows.map(window => window.name)).toEqual([
+    'A · 5 hours',
+    'A · 7 days',
+    'B · 5 hours',
+    'B · 7 days',
+    '并发',
+    'A · 重置次数',
+    'B · 重置次数',
+    '额度来源',
+  ])
+})
+
+test('both real key periods remain separate from same-named shared periods', () => {
+  const keyWindows = ['5 hours', '7 days'].map(name => ({ name, used: 10, amount: 1, limit: 10, unit: 'USD' }))
+  const shown = presentCodePlaneUsage(
+    { windows: keyWindows },
+    {
+      groups: [{ id: 7, name: '共享组', accounts: [{ id: 1, usage }] }],
+    },
+  )
+  expect(shown.windows.slice(0, 2)).toEqual(keyWindows)
+  expect(shown.windows.slice(2, 4).map(window => window.name)).toEqual(['共享组 · 5 hours', '共享组 · 7 days'])
+  expect(new Set(shown.windows.map(window => window.name)).size).toBe(shown.windows.length)
 })
 
 test('coincident reset expirations are combined into the native expiry annotation', () => {

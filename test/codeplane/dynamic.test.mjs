@@ -44,8 +44,8 @@ test('shared upstreams are queried once across groups and failures stay local', 
   expect(JSON.stringify(result)).not.toContain('private-detail')
   const shown = presentCodePlaneUsage({ windows: [] }, result)
   expect(shown.windows.filter(w => w.name.endsWith('并发'))).toHaveLength(2)
-  expect(shown.windows.find(w => w.name === 'Other · 上游 6 · 7d').used).toBeUndefined()
-  expect(shown.windows.find(w => w.name === '示例分组 · 7d').used).toBe(55)
+  expect(shown.windows.find(w => w.name === 'Other · 上游 6 · 7 days').used).toBeUndefined()
+  expect(shown.windows.find(w => w.name === '示例分组 · 7 days').used).toBe(55)
 })
 
 test('different TET CodePlane sessions never share reads', async () => {
@@ -99,11 +99,11 @@ test('multiple upstreams keep period pairs and subsequent groups aligned in nati
       },
     )
     for (const account of accounts) {
-      const five = shown.windows.findIndex(w => w.name === '示例分组 · 上游 ' + account.id + ' · 5h')
+      const five = shown.windows.findIndex(w => w.name === '示例分组 · 上游 ' + account.id + ' · 5 hours')
       expect(five % 2).toBe(0)
-      expect(shown.windows[five + 1].name).toBe('示例分组 · 上游 ' + account.id + ' · 7d')
+      expect(shown.windows[five + 1].name).toBe('示例分组 · 上游 ' + account.id + ' · 7 days')
     }
-    expect(shown.windows.findIndex(w => w.name === 'Next · 5h') % 2).toBe(0)
+    expect(shown.windows.findIndex(w => w.name === 'Next · 5 hours') % 2).toBe(0)
     expect(shown.windows.filter(w => w.name === '示例分组 · 并发')).toHaveLength(1)
     expect(shown.windows.every(w => w.display !== '' && typeof w.name === 'string')).toBe(true)
     expect(shown.windows.filter(w => w.name.includes('重置次数'))).toHaveLength(count + 1)
@@ -121,11 +121,11 @@ test('single-sided statistics and odd key limits do not shift TET CodePlane pair
     [{ name: 'Key limit' }, { name: 'Today', aside: true }, { name: 'Total', aside: true }],
   ]) {
     const shown = presentCodePlaneUsage({ windows }, { groups: [{ ...group, accounts: [account] }] })
-    const five = shown.windows.findIndex(window => window.name === '5h')
+    const five = shown.windows.findIndex(window => window.name === '5 hours')
     expect(five % 2).toBe(0)
-    expect(shown.windows[five + 1].name).toBe('7d')
-    expect(shown.windows[five + 2]).toEqual({ name: '示例分组 · 并发', display: '2 / 10', aside: true })
-    expect(shown.windows[five + 3].name).toBe('示例分组 · 重置次数')
+    expect(shown.windows[five + 1].name).toBe('7 days')
+    expect(shown.windows[five + 2]).toEqual({ name: '并发', display: '2 / 10', aside: true })
+    expect(shown.windows[five + 3].name).toBe('重置次数')
     expect(shown.windows.slice(0, windows.length)).toEqual(windows)
     if (windows.length % 2) {
       expect(shown.windows[five - 1]).toEqual({ name: '分组', display: '示例分组', aside: true })
@@ -148,7 +148,7 @@ test('natural names cannot collide with generated group or upstream labels', () 
   )
   const names = shown.windows.map(window => window.name)
   expect(new Set(names).size).toBe(names.length)
-  expect(shown.windows.filter(window => window.name.endsWith('5h'))).toHaveLength(4)
+  expect(shown.windows.filter(window => window.name.endsWith('5 hours'))).toHaveLength(4)
   expect(shown.windows.filter(window => window.name.endsWith('并发'))).toHaveLength(3)
 })
 
@@ -166,9 +166,9 @@ test('hierarchy separators in natural names cannot collide across groups and ups
   )
   const names = shown.windows.map(window => window.name)
   expect(new Set(names).size).toBe(names.length)
-  expect(names).toContain('X · Y · 5h')
-  expect(names).toContain('X / Y #8 · 5h')
-  expect(names).toContain('X / Y #9 · 5h')
+  expect(names).toContain('X · Y · 5 hours')
+  expect(names).toContain('X / Y #8 · 5 hours')
+  expect(names).toContain('X / Y #9 · 5 hours')
 })
 
 test('queued upstreams share a total deadline with at most four HTTP queries at once', async () => {
@@ -242,8 +242,8 @@ test('same-named groups and unnamed upstreams remain distinct without summing pe
   const names = shown.windows.map(w => w.name)
   expect(new Set(names).size).toBe(names.length)
   expect(names).toContain('示例分组 #7 · 并发')
-  expect(names).toContain('示例分组 #8 · 上游 6 · 5h')
-  expect(shown.windows.filter(w => w.name.endsWith('7d')).map(w => w.used)).toEqual([55, 55, 55])
+  expect(names).toContain('示例分组 #8 · 上游 6 · 5 hours')
+  expect(shown.windows.filter(w => w.name.endsWith('7 days')).map(w => w.used)).toEqual([55, 55, 55])
 })
 
 test('refresh follows rename, migration, addition and removal despite legacy binding fields', async () => {

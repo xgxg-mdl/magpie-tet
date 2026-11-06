@@ -88,16 +88,14 @@ test('TET CodePlane and API credentials stay isolated and traffic toggles do not
   const result = await plugin.auth.usage(async () => auth)
   expect(result.balance).toBe('12.00 USD')
   expect(result.windows.find(window => window.name === 'Today').display).toBe('1.00 USD')
-  const windows = ['5h', '7d', '重置次数'].map(name =>
-    result.windows.find(window => window.name === (name === '重置次数' ? 'Shared · ' + name : name)),
-  )
+  const windows = ['5 hours', '7 days', '重置次数'].map(name => result.windows.find(window => window.name === name))
   expect(windows[0].used).toBe(0)
   expect(windows[1].used).toBe(55)
   expect(windows[2].display).toBe('0 次')
   expect(result.plan).toBe('TET')
   expect(result.plan).not.toContain('上游')
-  expect(result.windows.find(window => window.name === 'Shared · 并发')).toEqual({
-    name: 'Shared · 并发',
+  expect(result.windows.find(window => window.name === '并发')).toEqual({
+    name: '并发',
     display: '2 / 10',
     aside: true,
   })
@@ -222,7 +220,7 @@ test('different quota accounts share the in-flight group list but refresh its sn
       ? envelope({ content: [{ ...group, capacity: { used: 8, max: 10 } }], totalElements: 1 })
       : read(url, init)
   const windows = await client.windows(auth, 1000)
-  expect(windows.find(window => window.name === 'Shared · 并发').display).toBe('8 / 10')
+  expect(windows.find(window => window.name === '并发').display).toBe('8 / 10')
 })
 
 test('changing the API address or invalidating a binding prevents TET CodePlane network access', async () => {
