@@ -2,7 +2,7 @@ export const PROVIDER = 'tet'
 export const NAME = 'TET'
 export const SDK = '@ai-sdk/openai'
 
-const record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value)
+const record = value => value !== null && typeof value === 'object' && !Array.isArray(value)
 
 export function apiBase(rawBase) {
   if (rawBase === undefined || rawBase === null || rawBase === '') {
@@ -13,7 +13,9 @@ export function apiBase(rawBase) {
     if (typeof rawBase !== 'string' || !/^https?:\/\//i.test(rawBase.trim())) throw new Error()
     base = new URL(rawBase.trim())
     if (base.username || base.password || base.search || base.hash) throw new Error()
-  } catch { throw new Error('baseURL must be an HTTP(S) API base URL without credentials, query or fragment.') }
+  } catch {
+    throw new Error('baseURL must be an HTTP(S) API base URL without credentials, query or fragment.')
+  }
   /** 纯站点地址使用标准入口；显式路径保留，避免破坏代理前缀。 */
   if (!base.pathname.replace(/\/+$/, '')) base.pathname = '/v1'
   return base.href.replace(/\/+$/, '')
@@ -39,31 +41,61 @@ export function settings(value = {}) {
   const modelOverrides = value.modelOverrides ?? {}
   const modelLimits = value.modelLimits ?? {}
   if (!record(modelOverrides) || !record(modelLimits)) throw new Error('Model settings must be objects.')
-  const overrides = Object.assign(Object.create(null), Object.fromEntries(Object.entries(modelOverrides).map(([id, override]) => {
-    if (!record(override) || Object.keys(override).some(key => !['name', 'limit', 'temperature', 'reasoning', 'toolCall', 'imageInput', 'reasoningLevels'].includes(key))) {
-      throw new Error('Unsupported model override for ' + id)
-    }
-    const checked = { ...override }
-    for (const key of ['temperature', 'reasoning', 'toolCall', 'imageInput']) {
-      if (key in checked && typeof checked[key] !== 'boolean') throw new Error(key + ' must be boolean.')
-    }
-    if ('name' in checked && (typeof checked.name !== 'string' || !checked.name.trim())) throw new Error('Model name cannot be empty.')
-    if ('reasoningLevels' in checked && (!Array.isArray(checked.reasoningLevels) || checked.reasoningLevels.some(level => !['none', 'minimal', 'low', 'medium', 'high', 'xhigh'].includes(level)))) {
-      throw new Error('Invalid reasoning levels.')
-    }
-    if ('reasoningLevels' in checked) checked.reasoningLevels = [...checked.reasoningLevels]
-    return [id, checked]
-  })))
-  for (const [id, limit] of Object.entries(modelLimits)) overrides[id] = { ...overrides[id], limit: overrides[id]?.limit ?? limit }
+  const overrides = Object.assign(
+    Object.create(null),
+    Object.fromEntries(
+      Object.entries(modelOverrides).map(([id, override]) => {
+        if (
+          !record(override) ||
+          Object.keys(override).some(
+            key =>
+              !['name', 'limit', 'temperature', 'reasoning', 'toolCall', 'imageInput', 'reasoningLevels'].includes(key),
+          )
+        ) {
+          throw new Error('Unsupported model override for ' + id)
+        }
+        const checked = { ...override }
+        for (const key of ['temperature', 'reasoning', 'toolCall', 'imageInput']) {
+          if (key in checked && typeof checked[key] !== 'boolean') throw new Error(key + ' must be boolean.')
+        }
+        if ('name' in checked && (typeof checked.name !== 'string' || !checked.name.trim()))
+          throw new Error('Model name cannot be empty.')
+        if (
+          'reasoningLevels' in checked &&
+          (!Array.isArray(checked.reasoningLevels) ||
+            checked.reasoningLevels.some(
+              level => !['none', 'minimal', 'low', 'medium', 'high', 'xhigh'].includes(level),
+            ))
+        ) {
+          throw new Error('Invalid reasoning levels.')
+        }
+        if ('reasoningLevels' in checked) checked.reasoningLevels = [...checked.reasoningLevels]
+        return [id, checked]
+      }),
+    ),
+  )
+  for (const [id, limit] of Object.entries(modelLimits))
+    overrides[id] = { ...overrides[id], limit: overrides[id]?.limit ?? limit }
   for (const override of Object.values(overrides)) {
     if (!('limit' in override)) continue
     const limit = override.limit
-    if (!record(limit) || !Number.isSafeInteger(limit.context) || limit.context <= 0 ||
-      !Number.isSafeInteger(limit.output) || limit.output <= 0 || limit.output > limit.context ||
-      (limit.input !== undefined && (!Number.isSafeInteger(limit.input) || limit.input <= 0 || limit.input > limit.context))) {
+    if (
+      !record(limit) ||
+      !Number.isSafeInteger(limit.context) ||
+      limit.context <= 0 ||
+      !Number.isSafeInteger(limit.output) ||
+      limit.output <= 0 ||
+      limit.output > limit.context ||
+      (limit.input !== undefined &&
+        (!Number.isSafeInteger(limit.input) || limit.input <= 0 || limit.input > limit.context))
+    ) {
       throw new Error('Model limits must be positive integers within the context window.')
     }
-    override.limit = { context: limit.context, output: limit.output, ...(limit.input === undefined ? {} : { input: limit.input }) }
+    override.limit = {
+      context: limit.context,
+      output: limit.output,
+      ...(limit.input === undefined ? {} : { input: limit.input }),
+    }
   }
   const showTraffic = value.showTraffic ?? true
   if (typeof showTraffic !== 'boolean') throw new Error('showTraffic must be boolean.')

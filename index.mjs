@@ -4,15 +4,15 @@ import { credentials, forward, createQueries } from './src/transport.mjs'
 import { discoverModels, loadCatalog } from './src/models.mjs'
 import { mapUsage } from './src/usage.mjs'
 import { safeDetails } from './src/errors.mjs'
-import { createManagement } from './src/management.mjs'
-import { presentManagementUsage } from './src/management-usage.mjs'
+import { createCodePlane } from './src/codeplane/index.mjs'
+import { presentCodePlaneUsage } from './src/codeplane/presentation.mjs'
 
 const icon =
   'data:image/svg+xml;base64,' + readFileSync(new URL('./assets/logo.svg', import.meta.url)).toString('base64')
 
 export const TetPlugin = async (input = {}, options = {}) => {
   const query = createQueries()
-  const management = createManagement()
+  const codePlane = createCodePlane()
   const configured = settings(options)
   /** 只有供应商开关从宿主实时读取，结构化包选项由重载生效。 */
   const currentSettings = () => {
@@ -34,7 +34,7 @@ export const TetPlugin = async (input = {}, options = {}) => {
       refreshLead: 5 * 60 * 1000,
       async refresh(auth) {
         if (auth?.type !== 'oauth' || !auth.metadata?.management?.accountLogin) return
-        return management.refresh(auth, currentSettings().queryTimeoutMs)
+        return codePlane.refresh(auth, currentSettings().queryTimeoutMs)
       },
       options: [
         {
@@ -47,18 +47,18 @@ export const TetPlugin = async (input = {}, options = {}) => {
       methods: [
         {
           type: 'oauth',
-          label: '账号登录',
+          label: 'TET CodePlane 账号登录',
           prompts: [
-            { type: 'text', key: 'managementURL', message: '管理台地址' },
-            { type: 'text', key: 'managementUsername', message: '管理台账号' },
-            { type: 'password', key: 'managementPassword', message: '管理台密码' },
+            { type: 'text', key: 'managementURL', message: 'TET CodePlane 地址' },
+            { type: 'text', key: 'managementUsername', message: 'TET CodePlane 账号' },
+            { type: 'password', key: 'managementPassword', message: 'TET CodePlane 密码' },
             { type: 'text', key: 'baseURL', message: '网关 API 地址（留空使用账号配置）' },
           ],
           async authorize(inputs, { signal } = {}) {
-            const result = await management.authorizeAccount(inputs, currentSettings().queryTimeoutMs, signal)
+            const result = await codePlane.authorizeAccount(inputs, currentSettings().queryTimeoutMs, signal)
             return {
               method: 'auto',
-              instructions: '账号已验证，正在保存网关与管理台配置。',
+              instructions: '账号已验证，正在保存网关与 TET CodePlane 配置。',
               async callback() {
                 return result
               },
@@ -120,25 +120,25 @@ export const TetPlugin = async (input = {}, options = {}) => {
           const opts = currentSettings()
           const auth = await getAuth()
           credentials(auth)
-          const [keyUsage, groupUsage] = await Promise.allSettled([
+          const [keyUsage, codePlaneUsage] = await Promise.allSettled([
             query('/usage', auth, opts.queryTimeoutMs, accountBase(auth, opts)),
-            management.read(auth, opts.queryTimeoutMs, async next => {
+            codePlane.read(auth, opts.queryTimeoutMs, async next => {
               const current = await getAuth()
               // 用户退出或替换登录后，旧查询不能覆盖新认证。
               if (JSON.stringify(current) !== JSON.stringify(auth)) return
-              if (!input.client?.auth?.set) throw new Error('宿主不支持保存管理台会话，请更新 Magpie')
+              if (!input.client?.auth?.set) throw new Error('宿主不支持保存 TET CodePlane 会话，请更新 Magpie')
               try {
                 await input.client.auth.set({ path: { id: PROVIDER }, body: next })
               } catch {
-                throw new Error('管理台会话保存失败，请重试')
+                throw new Error('TET CodePlane 会话保存失败，请重试')
               }
             }),
           ])
           if (keyUsage.status === 'rejected') throw keyUsage.reason
           const payload = keyUsage.value
           const usage = mapUsage(payload, opts)
-          if (payload.isValid && groupUsage.status === 'fulfilled') {
-            return presentManagementUsage(usage, groupUsage.value)
+          if (payload.isValid && codePlaneUsage.status === 'fulfilled') {
+            return presentCodePlaneUsage(usage, codePlaneUsage.value)
           }
           return usage
         } catch (error) {
