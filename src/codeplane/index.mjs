@@ -94,6 +94,14 @@ export function createCodePlane() {
   }
   const refresh = async (auth, timeoutMs, { force = false, signal } = {}) => {
     const binding = validate(auth)
+    // 旧版本把内部哈希作为账号名；仅迁移该默认值，保留其他已保存的名称。
+    const rename =
+      auth.type === 'oauth' &&
+      binding.accountLogin &&
+      typeof binding.username === 'string' &&
+      binding.username.trim() &&
+      auth.accountId === identity(binding.url, binding.userId)
+    if (rename) auth = { ...auth, accountId: binding.username.trim() }
     const id = createHash('sha256')
       .update(JSON.stringify([auth.type, auth.key, binding]))
       .digest('hex')
@@ -101,7 +109,8 @@ export function createCodePlane() {
     for (const [key, value] of failures) if (value.until <= Date.now()) failures.delete(key)
     const cached = renewed.get(id)
     if (cached) return cached.auth
-    if (!force && (!Number.isFinite(binding.expiresAt) || binding.expiresAt > Date.now() + 300000)) return
+    if (!force && (!Number.isFinite(binding.expiresAt) || binding.expiresAt > Date.now() + 300000))
+      return rename ? auth : undefined
     if (!binding.accountLogin && auth.type !== 'oauth' && (!binding.username || !binding.password)) {
       if (force || binding.expiresAt <= Date.now())
         throw new Error('TET CodePlane 登录已过期，请重新登录以启用自动续期')
@@ -198,7 +207,7 @@ export function createCodePlane() {
           access: session.token,
           expires: session.expiresAt,
           key: account.key,
-          accountId: uid,
+          accountId: inputs.managementUsername.trim(),
           uid,
           metadata: {
             baseURL: account.baseURL,

@@ -53,7 +53,7 @@ test('group windows preserve measured zero and full readings without affecting r
   expect(windows).toEqual([
     { name: '5h', used: 0, span: 18000, resetsAt: soon, aside: true },
     { name: '7d', used: 100, span: 604800, resetsAt: later, aside: true },
-    { name: '可用重置', display: '0 次', aside: true },
+    { name: '重置次数', display: '0 次', aside: true },
   ])
   expect(windows.every(window => window.amount === undefined && window.limit === undefined)).toBe(true)
 })
@@ -163,7 +163,7 @@ test('reset expiry selects only the nearest valid future credit and respects zer
   }
   const windows = mapCodePlaneUsage({ usage, credits }, context)
   expect(windows.at(-1)).toEqual({
-    name: '可用重置',
+    name: '重置次数',
     display: '3 次',
     runsOutAt: soon,
     runsOut: 1,
@@ -211,7 +211,7 @@ test('presentation pairs periods, costs and operational metrics without repeated
     '示例分组 · 5h',
     '示例分组 · 7d',
     '示例分组 · 并发',
-    '示例分组 · 可用重置',
+    '示例分组 · 重置次数',
   ])
   expect(shown.windows).toHaveLength(8)
   expect(shown.plan).toBe('Wallet')
@@ -243,7 +243,7 @@ test('real key limits stay distinct and visible ahead of display-only group peri
     'Shared · 5h',
     'Shared · 7d',
     'Shared · 并发',
-    'Shared · 可用重置',
+    'Shared · 重置次数',
   ])
 })
 

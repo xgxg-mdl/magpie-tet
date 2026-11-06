@@ -106,7 +106,7 @@ test('multiple upstreams keep period pairs and subsequent groups aligned in nati
     expect(shown.windows.findIndex(w => w.name === 'Next · 5h') % 2).toBe(0)
     expect(shown.windows.filter(w => w.name === '示例分组 · 并发')).toHaveLength(1)
     expect(shown.windows.every(w => w.display !== '' && typeof w.name === 'string')).toBe(true)
-    expect(shown.windows.filter(w => w.name.includes('可用重置'))).toHaveLength(count + 1)
+    expect(shown.windows.filter(w => w.name.includes('重置次数'))).toHaveLength(count + 1)
   }
 })
 
@@ -125,7 +125,7 @@ test('single-sided statistics and odd key limits do not shift TET CodePlane pair
     expect(five % 2).toBe(0)
     expect(shown.windows[five + 1].name).toBe('示例分组 · 7d')
     expect(shown.windows[five + 2]).toEqual({ name: '示例分组 · 并发', display: '2 / 10', aside: true })
-    expect(shown.windows[five + 3].name).toBe('示例分组 · 可用重置')
+    expect(shown.windows[five + 3].name).toBe('示例分组 · 重置次数')
     expect(shown.windows.slice(0, windows.length)).toEqual(windows)
     if (windows.length % 2) {
       expect(shown.windows[five - 1]).toEqual({ name: 'TET CodePlane 来源', display: '示例分组', aside: true })

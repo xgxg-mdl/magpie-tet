@@ -90,6 +90,74 @@ test('account login derives a gateway key and separate URLs with no copied Key i
   expect(requests).toEqual([{ url: 'https://gateway.example/v1/responses', token: 'Bearer synthetic-gateway-key' }])
 })
 
+test('account names use the trimmed login while identity stays scoped to the site and user', async () => {
+  const { result } = await login({}, { ...inputs, managementUsername: '  synthetic-user  ' })
+  const renamed = (await login({ userName: 'Changed display name' }, { ...inputs, managementUsername: 'alias' })).result
+  const otherUser = (await login({ userId: 8 })).result
+  const otherSite = (await login({}, { ...inputs, managementURL: 'https://other.example' })).result
+  expect(result.accountId).toBe('synthetic-user')
+  expect(renamed.accountId).toBe('alias')
+  expect(result.uid).toMatch(/^[a-f0-9]{64}$/)
+  expect(renamed.uid).toBe(result.uid)
+  expect(otherUser.uid).not.toBe(result.uid)
+  expect(otherSite.uid).not.toBe(result.uid)
+  expect(result.refresh).toBe(result.uid)
+})
+
+test('legacy hashed names migrate without renewing a valid session or overwriting custom names', async () => {
+  const { plugin, result } = await login()
+  const auth = { ...stored(result), accountId: result.uid }
+  globalThis.fetch = async () => {
+    throw new Error('A valid session must not need network access to rename the account')
+  }
+  const next = await plugin.auth.refresh(auth)
+  expect(next).toEqual({ ...auth, accountId: inputs.managementUsername })
+  expect(auth.accountId).toBe(result.uid)
+  expect(await plugin.auth.refresh(next)).toBeUndefined()
+  expect(await plugin.auth.refresh({ ...auth, accountId: 'Custom account name' })).toBeUndefined()
+})
+
+test('usage refresh persists the migrated account name in the host account scope', async () => {
+  const { result } = await login()
+  let auth = { ...stored(result), accountId: result.uid }
+  const saved = []
+  const plugin = await TetPlugin({
+    client: {
+      auth: {
+        async set(update) {
+          saved.push(update)
+          auth = update.body
+        },
+      },
+    },
+  })
+  const visited = []
+  globalThis.fetch = async url => {
+    visited.push(String(url))
+    return String(url).endsWith('/usage')
+      ? Response.json({ isValid: true, balance: 100, usage: {} })
+      : envelope({ content: [], totalElements: 0 })
+  }
+  const usage = await plugin.auth.usage(async () => auth)
+  expect(usage.error).toBeUndefined()
+  expect(saved).toHaveLength(1)
+  expect(saved[0].path).toEqual({ id: 'tet' })
+  expect(auth.accountId).toBe(inputs.managementUsername)
+  expect(auth.uid).toBe(result.uid)
+  expect(visited.some(url => /\/auth\/(login|me)$/.test(url))).toBe(false)
+})
+
+test('legacy name migration also preserves identity through session renewal', async () => {
+  const { plugin, result } = await login({ tokenExpiresAt: Math.floor(Date.now() / 1000) + 60 })
+  const auth = { ...stored(result), accountId: result.uid }
+  globalThis.fetch = async () => envelope(session({ token: 'renewed-token' }))
+  const next = await plugin.auth.refresh(auth)
+  expect(next.accountId).toBe(inputs.managementUsername)
+  expect(next.uid).toBe(auth.uid)
+  expect(next.refresh).toBe(auth.refresh)
+  expect(next.access).toBe('renewed-token')
+})
+
 test('an explicit gateway URL overrides server defaults and invalid login responses fail safely', async () => {
   const { result } = await login({}, { ...inputs, baseURL: 'https://override.example/proxy/v1' })
   expect(result.metadata.baseURL).toBe('https://override.example/proxy/v1')

@@ -68,10 +68,10 @@ function quotaReadings({ usage, credits, usageError, creditsError }, { now = Dat
     }
   }
   let resets
-  if (creditsIssue) resets = text('可用重置', creditsIssue)
-  else if (!Number.isSafeInteger(count) || count < 0) resets = text('可用重置', '暂无数据')
+  if (creditsIssue) resets = text('重置次数', creditsIssue)
+  else if (!Number.isSafeInteger(count) || count < 0) resets = text('重置次数', '暂无数据')
   else {
-    resets = text('可用重置', count.toLocaleString('en-US') + ' 次')
+    resets = text('重置次数', count.toLocaleString('en-US') + ' 次')
     const future = (Array.isArray(credits.resetCreditExpirations) ? credits.resetCreditExpirations : [])
       .map(timestamp)
       .filter(value => value && Date.parse(value) > now)

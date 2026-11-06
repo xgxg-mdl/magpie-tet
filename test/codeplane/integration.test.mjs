@@ -88,7 +88,7 @@ test('TET CodePlane and API credentials stay isolated and traffic toggles do not
   const result = await plugin.auth.usage(async () => auth)
   expect(result.balance).toBe('12.00 USD')
   expect(result.windows.find(window => window.name === 'Today').display).toBe('$1.00')
-  const windows = ['5h', '7d', '可用重置'].map(name =>
+  const windows = ['5h', '7d', '重置次数'].map(name =>
     result.windows.find(window => window.name === 'Shared · ' + name),
   )
   expect(windows[0].used).toBe(0)
