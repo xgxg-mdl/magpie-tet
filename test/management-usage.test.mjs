@@ -7,10 +7,10 @@ const later = '2030-01-08T00:00:00.000Z'
 const context = { now }
 const usage = { fiveHour: { utilization: 0, resetsAt: soon }, sevenDay: { utilization: 100, resetsAt: later } }
 
-test('concurrency preserves zero, full and over-capacity snapshots as display-only progress', () => {
+test('concurrency preserves zero, full and over-capacity snapshots as plain text', () => {
   for (const used of [0, 2, 10, 12]) {
     const windows = mapManagementUsage({ capacity: { used, max: 10 } }, context)
-    expect(windows.at(-1)).toEqual({ name: '并发', amount: used, limit: 10, used: used * 10, aside: true })
+    expect(windows.at(-1)).toEqual({ name: '并发', display: used + ' / 10', aside: true })
   }
 })
 
@@ -203,13 +203,22 @@ test('presentation pairs periods, costs and operational metrics without repeated
     ],
   }
   const shown = presentManagementUsage(normal, management)
-  expect(shown.windows.map(window => window.name)).toEqual(['Today', 'Total', '并发', '可用重置', '5h', '7d', 'Usage'])
-  expect(shown.windows).toHaveLength(7)
-  expect(shown.plan).toBe('Wallet · 管理台 · 海能发')
-  expect(shown.windows.every(window => !window.name.includes('海能发'))).toBe(true)
+  expect(shown.windows.map(window => window.name)).toEqual([
+    'Today',
+    'Total',
+    'Usage',
+    '管理台来源',
+    '海能发 · 5h',
+    '海能发 · 7d',
+    '海能发 · 并发',
+    '海能发 · 可用重置',
+  ])
+  expect(shown.windows).toHaveLength(8)
+  expect(shown.plan).toBe('Wallet')
+  expect(shown.windows[3].display).toBe('海能发')
   expect(shown.balance).toBe('12.00 USD')
-  expect(shown.windows[3].runsOutAt).toBe(soon)
-  expect(shown.windows[3].runsOut).toBe(1)
+  expect(shown.windows[7].runsOutAt).toBe(soon)
+  expect(shown.windows[7].runsOut).toBe(1)
   expect(presentManagementUsage(normal, null)).toBe(normal)
 })
 
@@ -225,10 +234,17 @@ test('real key limits stay distinct and visible ahead of display-only group peri
     groups: [{ id: 7, name: 'Shared', accounts: [{ id: 5, usage, credits: { availableResetCount: 0 } }] }],
   })
   expect(shown.windows[0]).toEqual(normal.windows[0])
-  expect(shown.plan).toBe('Pro · 管理台 · Shared')
+  expect(shown.plan).toBe('Pro')
   expect(shown.windows[0].aside).toBeUndefined()
   expect(shown.windows.slice(1).every(window => window.aside)).toBe(true)
-  expect(shown.windows.map(window => window.name)).toEqual(['5 hours', 'Today', '并发', '可用重置', '5h', '7d'])
+  expect(shown.windows.map(window => window.name)).toEqual([
+    '5 hours',
+    'Today',
+    'Shared · 5h',
+    'Shared · 7d',
+    'Shared · 并发',
+    'Shared · 可用重置',
+  ])
 })
 
 test('coincident reset expirations are combined into the native expiry annotation', () => {

@@ -70,7 +70,9 @@ test('management sign-in uses masked password without fixed group selection', as
   expect(saved.management.groupId).toBeUndefined()
   expect(saved.management.accountId).toBeUndefined()
   expect(saved.management.token).toBe(sessionToken)
-  expect(JSON.stringify(saved)).not.toContain('synthetic-password')
+  expect(saved.management.password).toBe(inputs.managementPassword)
+  expect(saved.management.username).toBe(inputs.managementUsername)
+  expect(saved.managementPassword).toBeUndefined()
   expect(saved.managementUsername).toBeUndefined()
 })
 
@@ -97,17 +99,17 @@ test('management and API credentials stay isolated and traffic toggles do not hi
   const result = await plugin.auth.usage(async () => auth)
   expect(result.balance).toBe('12.00 USD')
   expect(result.windows.find(window => window.name === 'Today').display).toBe('$1.00')
-  const windows = ['5h', '7d', '可用重置'].map(name => result.windows.find(window => window.name === name))
+  const windows = ['5h', '7d', '可用重置'].map(name =>
+    result.windows.find(window => window.name === 'Shared · ' + name),
+  )
   expect(windows[0].used).toBe(0)
   expect(windows[1].used).toBe(55)
   expect(windows[2].display).toBe('0 次')
-  expect(result.plan).toContain('管理台 · Shared')
+  expect(result.plan).toBe('TET')
   expect(result.plan).not.toContain('上游')
-  expect(result.windows.find(window => window.name === '并发')).toEqual({
-    name: '并发',
-    amount: 2,
-    limit: 10,
-    used: 20,
+  expect(result.windows.find(window => window.name === 'Shared · 并发')).toEqual({
+    name: 'Shared · 并发',
+    display: '2 / 10',
     aside: true,
   })
   expect(windows.every(window => window.aside)).toBe(true)
@@ -128,7 +130,7 @@ test('expired management sessions never mark a valid API key expired or hide its
   expect(usage.balance).toBe('12.00 USD')
   expect(usage.signIn).toBeUndefined()
   expect(usage.error).toBeUndefined()
-  expect(usage.windows.every(window => window.display === '管理台登录已过期')).toBe(true)
+  expect(usage.windows.every(window => window.display === '管理台账号或密码有误')).toBe(true)
   expect(JSON.stringify(usage)).not.toContain('private-server-detail')
 })
 
@@ -235,7 +237,7 @@ test('different quota accounts share the in-flight group list but refresh its sn
       ? envelope({ content: [{ ...group, capacity: { used: 8, max: 10 } }], totalElements: 1 })
       : read(url, init)
   const windows = await client.windows(auth, 1000)
-  expect(windows.find(window => window.name === '并发').amount).toBe(8)
+  expect(windows.find(window => window.name === 'Shared · 并发').display).toBe('8 / 10')
 })
 
 test('changing the API address or invalidating a binding prevents management network access', async () => {
@@ -251,7 +253,8 @@ test('changing the API address or invalidating a binding prevents management net
   expect((await client.windows(bad, 1000))[0].display).toContain('配置已变更')
   const expired = { type: 'api', key: 'key-a', metadata: result.metadata }
   expired.metadata.management.expiresAt = Date.now() - 1
-  expect((await client.windows(expired, 1000))[0].display).toBe('管理台登录已过期')
+  delete expired.metadata.management.password
+  expect((await client.windows(expired, 1000))[0].display).toBe('管理台登录已过期，请重新登录以启用自动续期')
   expect(calls).toBe(0)
 })
 

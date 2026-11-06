@@ -97,9 +97,7 @@ export function mapManagementUsage(
     } else {
       windows.push({
         name: '并发',
-        amount: capacity.used,
-        limit: capacity.max,
-        used: (capacity.used / capacity.max) * 100,
+        display: capacity.used.toLocaleString('en-US') + ' / ' + capacity.max.toLocaleString('en-US'),
         aside: true,
       })
     }
@@ -119,40 +117,39 @@ export function presentManagementUsage(usage, management) {
   for (const group of groups) {
     // 同名分组仍需区分；单分组正常路径不展示任何内部编号。
     const groupName = groupLabels.get(group.id)
-    const prefix = groups.length > 1 ? groupName + ' · ' : ''
+    const prefix = groupName + ' · '
     const accounts = [...group.accounts].sort((a, b) => a.id - b.id)
     const capacity = mapManagementUsage({ capacity: group.capacity ?? null }).find(window => window.name === '并发')
-    windows.push({ ...capacity, name: prefix + '并发' })
     if (!accounts.length) {
       windows.push({ name: prefix + '周期额度', display: '暂无额度来源', aside: true })
+      windows.push({ ...capacity, name: prefix + '并发' })
       continue
     }
     if (accounts.length === 1) {
       const mapped = mapManagementUsage(accounts[0])
-      windows.push({ ...mapped[2], name: prefix + mapped[2].name })
       windows.push(...mapped.slice(0, 2).map(window => ({ ...window, name: prefix + window.name })))
+      windows.push({ ...capacity, name: prefix + '并发' })
+      windows.push({ ...mapped[2], name: prefix + mapped[2].name })
     } else {
       const accountLabels = sourceLabels(accounts, id => '上游 ' + id)
       const sources = accounts.map(account => {
         const source = prefix + accountLabels.get(account.id) + ' · '
         return mapManagementUsage(account).map(window => ({ ...window, name: source + window.name }))
       })
-      // 首个来源次数与并发配对；周期始终两两排列，其余次数分别展示，不计算合计。
-      windows.push(sources[0][2])
       windows.push(...sources.flatMap(source => source.slice(0, 2)))
-      windows.push(...sources.slice(1).map(source => source[2]))
+      windows.push({ ...capacity, name: prefix + '并发' })
+      windows.push(...sources.map(source => source[2]))
       if (accounts.length % 2 === 0) {
         windows.push({ name: prefix + '额度来源', display: accounts.length + ' 个', aside: true })
       }
     }
   }
   const source = groups.length === 1 ? groups[0].name : groups.length + ' 个分组'
-  const leading = usage.windows.filter(window => window.name !== 'Usage')
-  // 用真实来源说明填满前面余下的一列，防止单项消费或 Key 限额使后续周期跨行。
-  if (leading.length % 2) leading.push(text(source))
+  const leading = [...usage.windows]
+  // Key 指标为奇数时补充真实来源概览，使后续周期从新行开始。
+  if (leading.length % 2) leading.push({ name: '管理台来源', display: source, aside: true })
   return {
     ...usage,
-    plan: [usage.plan !== 'TET' ? usage.plan : '', '管理台 · ' + source].filter(Boolean).join(' · '),
-    windows: [...leading, ...windows, ...usage.windows.filter(window => window.name === 'Usage')],
+    windows: [...leading, ...windows],
   }
 }

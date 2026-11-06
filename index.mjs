@@ -31,6 +31,11 @@ export const TetPlugin = async (input = {}, options = {}) => {
       provider: PROVIDER,
       icon,
       single: false,
+      refreshLead: 5 * 60 * 1000,
+      async refresh(auth) {
+        if (auth?.type !== 'oauth' || !auth.metadata?.management?.accountLogin) return
+        return management.refresh(auth, currentSettings().queryTimeoutMs)
+      },
       options: [
         {
           key: 'show-traffic',
@@ -74,6 +79,26 @@ export const TetPlugin = async (input = {}, options = {}) => {
             return management.authorize(inputs, currentSettings().queryTimeoutMs, signal)
           },
         },
+        {
+          type: 'oauth',
+          label: 'TET 账号登录（自动获取 Key）',
+          prompts: [
+            { type: 'text', key: 'managementURL', message: '管理台地址' },
+            { type: 'text', key: 'managementUsername', message: '管理台账号' },
+            { type: 'password', key: 'managementPassword', message: '管理台密码' },
+            { type: 'text', key: 'baseURL', message: '网关 API 地址（留空使用账号配置）' },
+          ],
+          async authorize(inputs, { signal } = {}) {
+            const result = await management.authorizeAccount(inputs, currentSettings().queryTimeoutMs, signal)
+            return {
+              method: 'auto',
+              instructions: '账号已验证，正在保存网关与管理台配置。',
+              async callback() {
+                return result
+              },
+            }
+          },
+        },
       ],
       async loader(getAuth) {
         const auth = await getAuth()
@@ -98,7 +123,17 @@ export const TetPlugin = async (input = {}, options = {}) => {
           credentials(auth)
           const [keyUsage, groupUsage] = await Promise.allSettled([
             query('/usage', auth, opts.queryTimeoutMs, accountBase(auth, opts)),
-            management.read(auth, opts.queryTimeoutMs),
+            management.read(auth, opts.queryTimeoutMs, async next => {
+              const current = await getAuth()
+              // 用户退出或替换登录后，旧查询不能覆盖新认证。
+              if (JSON.stringify(current) !== JSON.stringify(auth)) return
+              if (!input.client?.auth?.set) throw new Error('宿主不支持保存管理台会话，请更新 Magpie')
+              try {
+                await input.client.auth.set({ path: { id: PROVIDER }, body: next })
+              } catch {
+                throw new Error('管理台会话保存失败，请重试')
+              }
+            }),
           ])
           if (keyUsage.status === 'rejected') throw keyUsage.reason
           const payload = keyUsage.value

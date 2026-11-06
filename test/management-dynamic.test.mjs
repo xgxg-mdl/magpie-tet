@@ -98,7 +98,9 @@ test('multiple upstreams keep period pairs and subsequent groups aligned in nati
       expect(five % 2).toBe(0)
       expect(shown.windows[five + 1].name).toBe('海能发 · 上游 ' + account.id + ' · 7d')
     }
-    expect(shown.windows.findIndex(w => w.name === 'Next · 并发') % 2).toBe(0)
+    expect(shown.windows.findIndex(w => w.name === 'Next · 5h') % 2).toBe(0)
+    expect(shown.windows.filter(w => w.name === '海能发 · 并发')).toHaveLength(1)
+    expect(shown.windows.every(w => w.display !== '' && typeof w.name === 'string')).toBe(true)
     expect(shown.windows.filter(w => w.name.includes('可用重置'))).toHaveLength(count + 1)
   }
 })
@@ -114,13 +116,16 @@ test('single-sided statistics and odd key limits do not shift management pairs',
     [{ name: 'Key limit' }, { name: 'Today', aside: true }, { name: 'Total', aside: true }],
   ]) {
     const shown = presentManagementUsage({ windows }, { groups: [{ ...group, accounts: [account] }] })
-    const concurrency = shown.windows.findIndex(window => window.name === '并发')
-    expect(concurrency % 2).toBe(0)
-    expect(shown.windows[concurrency + 1].name).toBe('可用重置')
-    expect(shown.windows[concurrency + 2].name).toBe('5h')
-    expect(shown.windows[concurrency + 3].name).toBe('7d')
-    expect(shown.windows[concurrency - 1]).toEqual({ name: '管理台分组', display: '海能发', aside: true })
-    expect(windows.some(window => window.name === '管理台分组')).toBe(false)
+    const five = shown.windows.findIndex(window => window.name === '海能发 · 5h')
+    expect(five % 2).toBe(0)
+    expect(shown.windows[five + 1].name).toBe('海能发 · 7d')
+    expect(shown.windows[five + 2]).toEqual({ name: '海能发 · 并发', display: '2 / 10', aside: true })
+    expect(shown.windows[five + 3].name).toBe('海能发 · 可用重置')
+    expect(shown.windows.slice(0, windows.length)).toEqual(windows)
+    if (windows.length % 2) {
+      expect(shown.windows[five - 1]).toEqual({ name: '管理台来源', display: '海能发', aside: true })
+    }
+    expect(windows.some(window => window.name === '管理台来源')).toBe(false)
   }
 })
 

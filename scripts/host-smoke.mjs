@@ -14,12 +14,15 @@ const wrapper = join(sandbox, 'wrapper.mjs')
 await writeFile(
   wrapper,
   [
+    'let managementLogins = 0;',
     'globalThis.fetch = async (input, init) => {',
     ' const url = String(input);',
     ' if (url.startsWith("https://console.example/")) {',
     '  const envelope = data => Response.json({success:true,data});',
-    '  if (url.endsWith("/api/auth/login")) return envelope({token:"test-session"});',
-    '  if (new Headers(init?.headers).get("authorization") !== "Bearer test-session") throw new Error("Wrong management credential");',
+    '  if (url.endsWith("/api/auth/login") && JSON.parse(init.body).loginName === "account-user") return envelope({userId:42,apiKey:"synthetic-key-B",token:"account-session",tokenExpiresAt:Date.now()/1000+60,codexGatewayUrl:"https://second.example/api/v1"});',
+    '  if (url.endsWith("/api/auth/me") && new Headers(init?.headers).get("authorization") === "Bearer account-session") return envelope({userId:42,apiKey:"synthetic-key-B",token:"account-renewed",tokenExpiresAt:Date.now()/1000+3600});',
+    '  if (url.endsWith("/api/auth/login")) return envelope({token:"test-session-" + (++managementLogins),tokenExpiresAt:Date.now()/1000 + (managementLogins === 1 ? -1 : 3600)});',
+    '  if (!["Bearer test-session-2", "Bearer account-renewed"].includes(new Headers(init?.headers).get("authorization"))) throw new Error("Wrong management credential");',
     '  if (url.includes("?pageNum=")) return envelope({content:[{id:7,name:"Shared",accounts:[{id:5}],capacity:{used:2,max:10}}],totalElements:1});',
     '  if (url.endsWith("/5/usage?active=false")) return envelope({fiveHour:{utilization:0,resetsAt:"2000-01-01T00:00:00Z"},sevenDay:{utilization:55,resetsAt:"2099-01-01T00:00:00Z"}});',
     '  if (url.endsWith("/5/credits")) return envelope({availableResetCount:0});',
@@ -241,7 +244,7 @@ try {
   })
   const managed = await rpc('usage', { provider: 'tet', account: first.account })
   assert.equal(managed.balance, '12.34 USD')
-  const groupWindows = ['5h', '7d', '可用重置'].map(name => managed.windows.find(w => w.name === name))
+  const groupWindows = ['5h', '7d', '可用重置'].map(name => managed.windows.find(w => w.name === 'Shared · ' + name))
   assert.deepEqual(
     groupWindows.slice(0, 2).map(w => w.used),
     [0, 55],
@@ -250,20 +253,39 @@ try {
   assert.equal(groupWindows[0].resetsAt, '')
   assert.equal(groupWindows[0].span, 0)
   assert.equal(groupWindows[2].display, '0 次')
-  assert(managed.plan.includes('管理台 · Shared'))
+  assert(!managed.plan.includes('管理台'))
   assert(!managed.plan.includes('上游'))
-  const concurrency = managed.windows.find(w => w.name === '并发')
-  assert.equal(concurrency.amount, 2)
-  assert.equal(concurrency.limit, 10)
-  assert.equal(concurrency.used, 20)
+  const concurrency = managed.windows.find(w => w.name === 'Shared · 并发')
+  assert.equal(concurrency.display, '2 / 10')
+  assert.equal(concurrency.used, null)
   assert.equal(concurrency.aside, true)
   const savedAuth = await readFile(join(sandbox, 'synthetic-auth.json'), 'utf8')
-  assert(!savedAuth.includes('test-password'))
+  const managementAuth = JSON.parse(savedAuth)[first.account]
+  assert.equal(managementAuth.key, 'synthetic-key-A')
+  assert.equal(managementAuth.metadata.management.token, 'test-session-2')
+  assert.equal(managementAuth.metadata.management.password, 'test-password')
   assert(!savedAuth.includes('managementPassword'))
   assert(!savedAuth.includes('groupId'))
   assert(!savedAuth.includes('accountId'))
+  const accountFlow = await rpc('authorize', {
+    provider: 'tet',
+    method: 2,
+    account: 'new',
+    inputs: { ...managementInputs, managementUsername: 'account-user', baseURL: '' },
+  })
+  const signed = await rpc('callback', { session: accountFlow.session })
+  assert(signed.account)
+  const accountUsage = await rpc('usage', { provider: 'tet', account: signed.account })
+  assert.equal(accountUsage.balance, '56.78 USD')
+  const accountSaved = JSON.parse(await readFile(join(sandbox, 'synthetic-auth.json'), 'utf8'))[signed.account]
+  assert.equal(accountSaved.type, 'oauth')
+  assert.equal(accountSaved.access, 'account-renewed')
+  assert.equal(accountSaved.key, 'synthetic-key-B')
+  assert.equal(accountSaved.metadata.baseURL, 'https://second.example/api/v1')
+  const accountLoader = await rpc('load', { provider: 'tet', account: signed.account })
+  assert.equal(accountLoader.fetch, true)
   console.log(
-    'Official host smoke passed: root URL, account isolation, wallets with key/subscription limits, full-precision quota fields, unknown usage, concurrent forwarding, key replacement, identity, icon, live options, management prompts, display-only group quotas and password removal.',
+    'Official host smoke passed: account isolation, forwarding, limits, management presentation and persisted automatic re-login.',
   )
 } finally {
   child.kill()
