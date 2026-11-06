@@ -190,7 +190,7 @@ test('presentation pairs periods, costs and operational metrics without repeated
     groups: [
       {
         id: 7,
-        name: '海能发',
+        name: '示例分组',
         capacity: { used: 2, max: 10 },
         accounts: [
           {
@@ -208,14 +208,14 @@ test('presentation pairs periods, costs and operational metrics without repeated
     'Total',
     'Usage',
     '管理台来源',
-    '海能发 · 5h',
-    '海能发 · 7d',
-    '海能发 · 并发',
-    '海能发 · 可用重置',
+    '示例分组 · 5h',
+    '示例分组 · 7d',
+    '示例分组 · 并发',
+    '示例分组 · 可用重置',
   ])
   expect(shown.windows).toHaveLength(8)
   expect(shown.plan).toBe('Wallet')
-  expect(shown.windows[3].display).toBe('海能发')
+  expect(shown.windows[3].display).toBe('示例分组')
   expect(shown.balance).toBe('12.00 USD')
   expect(shown.windows[7].runsOutAt).toBe(soon)
   expect(shown.windows[7].runsOut).toBe(1)

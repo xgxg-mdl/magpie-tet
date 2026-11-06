@@ -7,7 +7,7 @@ afterEach(() => {
   globalThis.fetch = originalFetch
 })
 const envelope = data => Response.json({ success: true, data })
-const group = { id: 7, name: '海能发', accounts: [{ id: 5 }], capacity: { used: 2, max: 10 } }
+const group = { id: 7, name: '示例分组', accounts: [{ id: 5 }], capacity: { used: 2, max: 10 } }
 async function fixture() {
   const client = createManagement()
   globalThis.fetch = async () => envelope({ token: 'session-a' })
@@ -55,7 +55,7 @@ test('shared upstreams are queried once across groups and failures stay local', 
   const shown = presentManagementUsage({ windows: [] }, result)
   expect(shown.windows.filter(w => w.name.endsWith('并发'))).toHaveLength(2)
   expect(shown.windows.find(w => w.name === 'Other · 上游 6 · 7d').used).toBeUndefined()
-  expect(shown.windows.find(w => w.name === '海能发 · 7d').used).toBe(55)
+  expect(shown.windows.find(w => w.name === '示例分组 · 7d').used).toBe(55)
 })
 
 test('different management sessions never share reads', async () => {
@@ -94,12 +94,12 @@ test('multiple upstreams keep period pairs and subsequent groups aligned in nati
       },
     )
     for (const account of accounts) {
-      const five = shown.windows.findIndex(w => w.name === '海能发 · 上游 ' + account.id + ' · 5h')
+      const five = shown.windows.findIndex(w => w.name === '示例分组 · 上游 ' + account.id + ' · 5h')
       expect(five % 2).toBe(0)
-      expect(shown.windows[five + 1].name).toBe('海能发 · 上游 ' + account.id + ' · 7d')
+      expect(shown.windows[five + 1].name).toBe('示例分组 · 上游 ' + account.id + ' · 7d')
     }
     expect(shown.windows.findIndex(w => w.name === 'Next · 5h') % 2).toBe(0)
-    expect(shown.windows.filter(w => w.name === '海能发 · 并发')).toHaveLength(1)
+    expect(shown.windows.filter(w => w.name === '示例分组 · 并发')).toHaveLength(1)
     expect(shown.windows.every(w => w.display !== '' && typeof w.name === 'string')).toBe(true)
     expect(shown.windows.filter(w => w.name.includes('可用重置'))).toHaveLength(count + 1)
   }
@@ -116,14 +116,14 @@ test('single-sided statistics and odd key limits do not shift management pairs',
     [{ name: 'Key limit' }, { name: 'Today', aside: true }, { name: 'Total', aside: true }],
   ]) {
     const shown = presentManagementUsage({ windows }, { groups: [{ ...group, accounts: [account] }] })
-    const five = shown.windows.findIndex(window => window.name === '海能发 · 5h')
+    const five = shown.windows.findIndex(window => window.name === '示例分组 · 5h')
     expect(five % 2).toBe(0)
-    expect(shown.windows[five + 1].name).toBe('海能发 · 7d')
-    expect(shown.windows[five + 2]).toEqual({ name: '海能发 · 并发', display: '2 / 10', aside: true })
-    expect(shown.windows[five + 3].name).toBe('海能发 · 可用重置')
+    expect(shown.windows[five + 1].name).toBe('示例分组 · 7d')
+    expect(shown.windows[five + 2]).toEqual({ name: '示例分组 · 并发', display: '2 / 10', aside: true })
+    expect(shown.windows[five + 3].name).toBe('示例分组 · 可用重置')
     expect(shown.windows.slice(0, windows.length)).toEqual(windows)
     if (windows.length % 2) {
-      expect(shown.windows[five - 1]).toEqual({ name: '管理台来源', display: '海能发', aside: true })
+      expect(shown.windows[five - 1]).toEqual({ name: '管理台来源', display: '示例分组', aside: true })
     }
     expect(windows.some(window => window.name === '管理台来源')).toBe(false)
   }
@@ -236,8 +236,8 @@ test('same-named groups and unnamed upstreams remain distinct without summing pe
   const shown = presentManagementUsage({ windows: [] }, management)
   const names = shown.windows.map(w => w.name)
   expect(new Set(names).size).toBe(names.length)
-  expect(names).toContain('海能发 #7 · 并发')
-  expect(names).toContain('海能发 #8 · 上游 6 · 5h')
+  expect(names).toContain('示例分组 #7 · 并发')
+  expect(names).toContain('示例分组 #8 · 上游 6 · 5h')
   expect(shown.windows.filter(w => w.name.endsWith('7d')).map(w => w.used)).toEqual([55, 55, 55])
 })
 
