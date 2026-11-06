@@ -133,7 +133,7 @@ test('renewed sessions are saved through the host account scope without changing
     },
   })
   globalThis.fetch = async () => envelope({ token: 'old-token', tokenExpiresAt: Date.now() / 1000 - 1 })
-  const { metadata } = await plugin.auth.methods[1].authorize(inputs)
+  const { metadata } = await createManagement().authorize(inputs, 1000)
   stored = { type: 'api', key: 'synthetic-key', metadata }
   globalThis.fetch = async url => {
     if (String(url).startsWith('https://gateway.example')) return Response.json({ isValid: true, balance: 12 })
@@ -161,7 +161,7 @@ test('an old usage refresh cannot overwrite a replacement sign-in', async () => 
     },
   })
   globalThis.fetch = async () => envelope({ token: 'old-token', tokenExpiresAt: Date.now() / 1000 - 1 })
-  const { metadata } = await plugin.auth.methods[1].authorize(inputs)
+  const { metadata } = await createManagement().authorize(inputs, 1000)
   const old = { type: 'api', key: 'old-key', metadata }
   let reads = 0
   globalThis.fetch = async url => {
@@ -189,7 +189,7 @@ test('unsupported or failing session persistence is reported without hiding the 
   ]) {
     const plugin = await TetPlugin(input)
     globalThis.fetch = async () => envelope({ token: 'old-token', tokenExpiresAt: Date.now() / 1000 - 1 })
-    const { metadata } = await plugin.auth.methods[1].authorize(inputs)
+    const { metadata } = await createManagement().authorize(inputs, 1000)
     const auth = { type: 'api', key: 'synthetic-key', metadata }
     globalThis.fetch = async url =>
       String(url).startsWith('https://gateway.example')

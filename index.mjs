@@ -46,8 +46,28 @@ export const TetPlugin = async (input = {}, options = {}) => {
       ],
       methods: [
         {
+          type: 'oauth',
+          label: '账号登录',
+          prompts: [
+            { type: 'text', key: 'managementURL', message: '管理台地址' },
+            { type: 'text', key: 'managementUsername', message: '管理台账号' },
+            { type: 'password', key: 'managementPassword', message: '管理台密码' },
+            { type: 'text', key: 'baseURL', message: '网关 API 地址（留空使用账号配置）' },
+          ],
+          async authorize(inputs, { signal } = {}) {
+            const result = await management.authorizeAccount(inputs, currentSettings().queryTimeoutMs, signal)
+            return {
+              method: 'auto',
+              instructions: '账号已验证，正在保存网关与管理台配置。',
+              async callback() {
+                return result
+              },
+            }
+          },
+        },
+        {
           type: 'api',
-          label: 'TET API key',
+          label: 'API Key',
           placeholder: 'sk-…',
           prompts: [
             {
@@ -65,36 +85,15 @@ export const TetPlugin = async (input = {}, options = {}) => {
             },
           ],
           async authorize(inputs) {
-            return { type: 'success', metadata: { baseURL: apiBase(inputs.baseURL) } }
-          },
-        },
-        {
-          type: 'api',
-          label: 'TET API Key + 管理台额度',
-          placeholder: 'sk-…',
-          ask(inputs) {
-            return management.ask(inputs, currentSettings().queryTimeoutMs)
-          },
-          authorize(inputs, { signal } = {}) {
-            return management.authorize(inputs, currentSettings().queryTimeoutMs, signal)
-          },
-        },
-        {
-          type: 'oauth',
-          label: 'TET 账号登录（自动获取 Key）',
-          prompts: [
-            { type: 'text', key: 'managementURL', message: '管理台地址' },
-            { type: 'text', key: 'managementUsername', message: '管理台账号' },
-            { type: 'password', key: 'managementPassword', message: '管理台密码' },
-            { type: 'text', key: 'baseURL', message: '网关 API 地址（留空使用账号配置）' },
-          ],
-          async authorize(inputs, { signal } = {}) {
-            const result = await management.authorizeAccount(inputs, currentSettings().queryTimeoutMs, signal)
             return {
-              method: 'auto',
-              instructions: '账号已验证，正在保存网关与管理台配置。',
-              async callback() {
-                return result
+              type: 'success',
+              metadata: {
+                baseURL: apiBase(inputs.baseURL),
+                management: undefined,
+                managementURL: undefined,
+                managementUsername: undefined,
+                managementPassword: undefined,
+                managementGroup: undefined,
               },
             }
           },

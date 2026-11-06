@@ -31,7 +31,7 @@ test('saved account roots normalize across catalog, pagination, usage and forwar
   }
   const plugin = await TetPlugin()
   const auth = { type: 'api', key: 'synthetic-key', metadata: { baseURL: 'https://relay.example' } }
-  const login = await plugin.auth.methods[0].authorize({ baseURL: auth.metadata.baseURL })
+  const login = await plugin.auth.methods[1].authorize({ baseURL: auth.metadata.baseURL })
   expect(login.metadata.baseURL).toBe('https://relay.example/v1')
   const models = await plugin.provider.models({ models: {} }, { auth })
   expect(models['gpt-6.1-sol'].api.url).toBe('https://relay.example/v1')

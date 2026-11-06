@@ -21,7 +21,8 @@ await writeFile(
     '  const envelope = data => Response.json({success:true,data});',
     '  if (url.endsWith("/api/auth/login") && JSON.parse(init.body).loginName === "account-user") return envelope({userId:42,apiKey:"synthetic-key-B",token:"account-session",tokenExpiresAt:Date.now()/1000+60,codexGatewayUrl:"https://second.example/api/v1"});',
     '  if (url.endsWith("/api/auth/me") && new Headers(init?.headers).get("authorization") === "Bearer account-session") return envelope({userId:42,apiKey:"synthetic-key-B",token:"account-renewed",tokenExpiresAt:Date.now()/1000+3600});',
-    '  if (url.endsWith("/api/auth/login")) return envelope({token:"test-session-" + (++managementLogins),tokenExpiresAt:Date.now()/1000 + (managementLogins === 1 ? -1 : 3600)});',
+    '  if (url.endsWith("/api/auth/login")) return envelope({userId:41,apiKey:"synthetic-key-A",token:"test-session-" + (++managementLogins),tokenExpiresAt:Date.now()/1000 + (managementLogins === 1 ? 60 : 3600)});',
+    '  if (url.endsWith("/api/auth/me")) return envelope({userId:41,tokenExpiresAt:0});',
     '  if (!["Bearer test-session-2", "Bearer account-renewed"].includes(new Headers(init?.headers).get("authorization"))) throw new Error("Wrong management credential");',
     '  if (url.includes("?pageNum=")) return envelope({content:[{id:7,name:"Shared",accounts:[{id:5}],capacity:{used:2,max:10}}],totalElements:1});',
     '  if (url.endsWith("/5/usage?active=false")) return envelope({fiveHour:{utilization:0,resetsAt:"2000-01-01T00:00:00Z"},sevenDay:{utilization:55,resetsAt:"2099-01-01T00:00:00Z"}});',
@@ -80,17 +81,17 @@ try {
     plugins: [{ spec: 'tet', target: root }],
   })
   assert.equal(init.plugins[0].error, undefined)
-  const prompt = await rpc('prompt', { provider: 'tet', method: 0 })
+  const prompt = await rpc('prompt', { provider: 'tet', method: 1 })
   assert.equal(prompt.prompt.key, 'baseURL')
   const first = await rpc('apiKey', {
     provider: 'tet',
-    method: 0,
+    method: 1,
     key: 'synthetic-key-A',
     inputs: { baseURL: 'https://first.example' },
   })
   const second = await rpc('apiKey', {
     provider: 'tet',
-    method: 0,
+    method: 1,
     key: 'synthetic-key-B',
     account: 'new',
     inputs: { baseURL: 'https://second.example/api/v1' },
@@ -170,7 +171,7 @@ try {
   assert.equal(received.previous_response_id, undefined)
   await rpc('apiKey', {
     provider: 'tet',
-    method: 0,
+    method: 1,
     account: first.account,
     key: 'synthetic-key-C',
     inputs: { baseURL: 'https://first.example/v1' },
@@ -188,7 +189,7 @@ try {
   assert.equal((await rpc('providers', {}))[0].accounts.length, 2)
   const subscribed = await rpc('apiKey', {
     provider: 'tet',
-    method: 0,
+    method: 1,
     key: 'synthetic-key-D',
     account: 'new',
     inputs: { baseURL: 'https://first.example' },
@@ -203,7 +204,7 @@ try {
   for (const key of ['synthetic-key-E', 'synthetic-key-F']) {
     const account = await rpc('apiKey', {
       provider: 'tet',
-      method: 0,
+      method: 1,
       key,
       account: 'new',
       inputs: { baseURL: 'https://first.example' },
@@ -223,11 +224,11 @@ try {
     managementUsername: 'test-user',
     managementPassword: 'test-password',
   }
-  const managementPrompt = await rpc('prompt', { provider: 'tet', method: 1, inputs: managementInputs })
+  const managementPrompt = await rpc('prompt', { provider: 'tet', method: 0, inputs: managementInputs })
   assert.equal(managementPrompt.prompt, null)
   const passwordPrompt = await rpc('prompt', {
     provider: 'tet',
-    method: 1,
+    method: 0,
     inputs: {
       baseURL: managementInputs.baseURL,
       managementURL: managementInputs.managementURL,
@@ -235,13 +236,13 @@ try {
     },
   })
   assert.equal(passwordPrompt.prompt.type, 'password')
-  await rpc('apiKey', {
+  const managementFlow = await rpc('authorize', {
     provider: 'tet',
-    method: 1,
+    method: 0,
     account: first.account,
-    key: 'synthetic-key-A',
     inputs: managementInputs,
   })
+  await rpc('callback', { session: managementFlow.session })
   const managed = await rpc('usage', { provider: 'tet', account: first.account })
   assert.equal(managed.balance, '12.34 USD')
   const groupWindows = ['5h', '7d', '可用重置'].map(name => managed.windows.find(w => w.name === 'Shared · ' + name))
@@ -266,10 +267,9 @@ try {
   assert.equal(managementAuth.metadata.management.password, 'test-password')
   assert(!savedAuth.includes('managementPassword'))
   assert(!savedAuth.includes('groupId'))
-  assert(!savedAuth.includes('accountId'))
   const accountFlow = await rpc('authorize', {
     provider: 'tet',
-    method: 2,
+    method: 0,
     account: 'new',
     inputs: { ...managementInputs, managementUsername: 'account-user', baseURL: '' },
   })
@@ -284,6 +284,22 @@ try {
   assert.equal(accountSaved.metadata.baseURL, 'https://second.example/api/v1')
   const accountLoader = await rpc('load', { provider: 'tet', account: signed.account })
   assert.equal(accountLoader.fetch, true)
+  const switched = await rpc('apiKey', {
+    provider: 'tet',
+    method: 1,
+    account: signed.account,
+    key: 'synthetic-key-B',
+    inputs: { baseURL: 'https://second.example/api/v1' },
+  })
+  const plain = JSON.parse(await readFile(join(sandbox, 'synthetic-auth.json'), 'utf8'))[switched.account]
+  assert.equal(plain.type, 'api')
+  assert.deepEqual(plain.metadata, { baseURL: 'https://second.example/api/v1' })
+  assert.equal(plain.access, undefined)
+  assert.equal(plain.refresh, undefined)
+  assert.equal(plain.expires, undefined)
+  const plainUsage = await rpc('usage', { provider: 'tet', account: switched.account })
+  assert.equal(plainUsage.balance, '56.78 USD')
+  assert(!plainUsage.windows.some(w => w.name.includes('Shared')))
   console.log(
     'Official host smoke passed: account isolation, forwarding, limits, management presentation and persisted automatic re-login.',
   )

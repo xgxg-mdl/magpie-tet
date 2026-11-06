@@ -26,13 +26,39 @@ const session = (extra = {}) => ({
 async function login(extra = {}, entered = inputs) {
   globalThis.fetch = async () => envelope(session(extra))
   const plugin = await TetPlugin()
-  const flow = await plugin.auth.methods[2].authorize(entered)
+  const flow = await plugin.auth.methods[0].authorize(entered)
   return { plugin, result: await flow.callback() }
 }
 function stored(result) {
   const { type, ...fields } = result
   return { ...fields, type: 'oauth' }
 }
+
+test('only account and API Key sign-ins are exposed with account login first', async () => {
+  const plugin = await TetPlugin()
+  expect(plugin.auth.methods.map(method => [method.type, method.label])).toEqual([
+    ['oauth', '账号登录'],
+    ['api', 'API Key'],
+  ])
+  expect(plugin.auth.methods[0].prompts.find(prompt => prompt.key === 'managementPassword').type).toBe('password')
+  expect(plugin.auth.methods[1].prompts.map(prompt => prompt.key)).toEqual(['baseURL'])
+})
+
+test('plain Key metadata removes management credentials merged from old inputs', async () => {
+  const plugin = await TetPlugin()
+  const entered = {
+    baseURL: 'https://gateway.example',
+    management: { token: 'old-session', password: 'synthetic-password' },
+    managementURL: 'https://console.example',
+    managementUsername: 'synthetic-user',
+    managementPassword: 'synthetic-password',
+    managementGroup: '7:5',
+  }
+  const result = await plugin.auth.methods[1].authorize(entered)
+  expect(JSON.parse(JSON.stringify({ ...entered, ...result.metadata }))).toEqual({
+    baseURL: 'https://gateway.example/v1',
+  })
+})
 
 test('account login derives a gateway key and separate URLs with no copied Key input', async () => {
   const { plugin, result } = await login()
@@ -118,7 +144,7 @@ test('missing login Key is loaded from gateway configuration with the management
     expect(new Headers(init.headers).get('authorization')).toBe('Bearer ' + session().token)
     return envelope({ apiKey: 'configured-gateway-key', gatewayPublicBaseUrl: 'https://gateway.example' })
   }
-  const flow = await plugin.auth.methods[2].authorize(inputs)
+  const flow = await plugin.auth.methods[0].authorize(inputs)
   const result = await flow.callback()
   expect(result.key).toBe('configured-gateway-key')
   expect(result.metadata.baseURL).toBe('https://gateway.example/v1')

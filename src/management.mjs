@@ -113,12 +113,6 @@ export function createManagement() {
   const renewals = new Map()
   const renewed = new Map()
   const failures = new Map()
-  const fields = [
-    { type: 'text', key: 'baseURL', message: '网关 API 地址', placeholder: 'https://relay.example' },
-    { type: 'text', key: 'managementURL', message: '管理台地址', placeholder: 'https://console.example' },
-    { type: 'text', key: 'managementUsername', message: '管理台账号' },
-    { type: 'password', key: 'managementPassword', message: '管理台密码' },
-  ]
   const flowKey = inputs =>
     createHash('sha256')
       .update(
@@ -323,14 +317,6 @@ export function createManagement() {
       } finally {
         signIns.delete(flowKey(inputs))
       }
-    },
-    async ask(inputs) {
-      for (const field of fields) {
-        if (!(field.key in inputs)) return field
-        if (field.key === 'baseURL') apiBase(inputs.baseURL)
-        if (field.key === 'managementURL') managementBase(inputs.managementURL)
-      }
-      return null
     },
     async authorize(inputs, timeoutMs, signal) {
       const baseURL = apiBase(inputs.baseURL)

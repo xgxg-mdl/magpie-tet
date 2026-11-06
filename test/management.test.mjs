@@ -52,17 +52,10 @@ function upstream(log = []) {
   }
 }
 
-test('management sign-in uses masked password without fixed group selection', async () => {
+test('legacy management metadata remains readable without exposing the removed sign-in method', async () => {
   const client = createManagement()
   globalThis.fetch = upstream()
-  const entered = {}
-  for (const key of ['baseURL', 'managementURL', 'managementUsername', 'managementPassword']) {
-    const prompt = await client.ask(entered, 1000)
-    expect(prompt.key).toBe(key)
-    if (key === 'managementPassword') expect(prompt.type).toBe('password')
-    entered[key] = inputs[key]
-  }
-  expect(await client.ask(entered, 1000)).toBeNull()
+  const entered = { ...inputs }
   const result = await client.authorize(entered, 1000)
   // 模拟宿主将全部输入与返回元数据合并后写入认证文件。
   const saved = JSON.parse(JSON.stringify({ ...entered, ...result.metadata }))
@@ -94,7 +87,7 @@ test('management and API credentials stay isolated and traffic toggles do not hi
     return managementFetch(url, init)
   }
   const plugin = await TetPlugin({}, { showTraffic: false })
-  const configured = await plugin.auth.methods[1].authorize(inputs)
+  const configured = await createClient().authorize(inputs, 1000)
   const auth = { type: 'api', key: 'synthetic-api-key', metadata: configured.metadata }
   const result = await plugin.auth.usage(async () => auth)
   expect(result.balance).toBe('12.00 USD')
@@ -120,7 +113,7 @@ test('management and API credentials stay isolated and traffic toggles do not hi
 test('expired management sessions never mark a valid API key expired or hide its wallet', async () => {
   globalThis.fetch = upstream()
   const plugin = await TetPlugin()
-  const result = await plugin.auth.methods[1].authorize(inputs)
+  const result = await createClient().authorize(inputs, 1000)
   const auth = { type: 'api', key: 'synthetic-api-key', metadata: result.metadata }
   globalThis.fetch = async url =>
     String(url).startsWith('https://gateway.example/')
@@ -137,7 +130,7 @@ test('expired management sessions never mark a valid API key expired or hide its
 test('slow management queries use a short independent budget and preserve a completed wallet', async () => {
   const plugin = await TetPlugin({}, { queryTimeoutMs: 60000 })
   globalThis.fetch = upstream()
-  const configured = await plugin.auth.methods[1].authorize(inputs)
+  const configured = await createClient().authorize(inputs, 1000)
   const auth = { type: 'api', key: 'synthetic-api-key', metadata: configured.metadata }
   const deadlines = []
   const timeout = spyOn(AbortSignal, 'timeout').mockImplementation(ms => {
