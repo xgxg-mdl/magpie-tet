@@ -109,7 +109,7 @@ export function mapCodePlaneUsage(data, context = {}) {
 /** 宿主只有扁平双列；多来源通过指标名称区分，不伪造钱包账号或合计共享额度。 */
 export function presentCodePlaneUsage(usage, codePlane) {
   if (!codePlane) return usage
-  const text = display => ({ name: 'TET CodePlane 分组', display, aside: true })
+  const text = display => ({ name: '分组', display, aside: true })
   if (codePlane.error) return { ...usage, windows: [...usage.windows, text(codePlane.error)] }
   if (!codePlane.groups.length) return { ...usage, windows: [...usage.windows, text('暂无可见分组')] }
   const groups = [...codePlane.groups].sort((a, b) => a.id - b.id)
@@ -153,10 +153,10 @@ export function presentCodePlaneUsage(usage, codePlane) {
       }
     }
   }
-  const source = groups.length === 1 ? groups[0].name : groups.length + ' 个分组'
+  const source = groups.map(group => groupLabels.get(group.id)).join('、')
   const leading = [...usage.windows]
   // Key 指标为奇数时补充真实来源概览，使后续周期从新行开始。
-  if (leading.length % 2) leading.push({ name: 'TET CodePlane 来源', display: source, aside: true })
+  if (leading.length % 2) leading.push(text(source))
   return {
     ...usage,
     windows: [...leading, ...windows],

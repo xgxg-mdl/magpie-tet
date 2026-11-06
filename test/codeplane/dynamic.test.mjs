@@ -128,9 +128,9 @@ test('single-sided statistics and odd key limits do not shift TET CodePlane pair
     expect(shown.windows[five + 3].name).toBe('示例分组 · 重置次数')
     expect(shown.windows.slice(0, windows.length)).toEqual(windows)
     if (windows.length % 2) {
-      expect(shown.windows[five - 1]).toEqual({ name: 'TET CodePlane 来源', display: '示例分组', aside: true })
+      expect(shown.windows[five - 1]).toEqual({ name: '分组', display: '示例分组', aside: true })
     }
-    expect(windows.some(window => window.name === 'TET CodePlane 来源')).toBe(false)
+    expect(windows.some(window => window.name === '分组')).toBe(false)
   }
 })
 

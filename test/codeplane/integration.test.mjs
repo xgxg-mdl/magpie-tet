@@ -118,7 +118,7 @@ test('expired TET CodePlane sessions never mark a valid API key expired or hide 
   expect(usage.balance).toBe('12.00 USD')
   expect(usage.signIn).toBeUndefined()
   expect(usage.error).toBeUndefined()
-  expect(usage.windows).toEqual([{ name: 'TET CodePlane 分组', display: 'TET CodePlane 账号或密码有误', aside: true }])
+  expect(usage.windows).toEqual([{ name: '分组', display: 'TET CodePlane 账号或密码有误', aside: true }])
   expect(JSON.stringify(usage)).not.toContain('private-server-detail')
 })
 
@@ -158,8 +158,8 @@ test('slow TET CodePlane queries use a short independent budget and preserve a c
     const result = await work
     expect(result.balance).toBe('12.00 USD')
     expect(result.windows.find(window => window.name === 'Today').display).toBe('1.00 USD · 2 req')
-    expect(result.windows.find(window => window.name === 'TET CodePlane 分组')).toEqual({
-      name: 'TET CodePlane 分组',
+    expect(result.windows.find(window => window.name === '分组')).toEqual({
+      name: '分组',
       display: 'TET CodePlane 查询超时或连接失败',
       aside: true,
     })
@@ -200,7 +200,7 @@ test('group list failure displays a single state without stale group readings', 
       ? Promise.resolve(new Response('private-detail', { status: 503 }))
       : read(url, init)
   const windows = await client.windows(auth, 1000)
-  expect(windows).toEqual([{ name: 'TET CodePlane 分组', display: 'TET CodePlane 服务异常（HTTP 503）', aside: true }])
+  expect(windows).toEqual([{ name: '分组', display: 'TET CodePlane 服务异常（HTTP 503）', aside: true }])
   expect(JSON.stringify(windows)).not.toContain('private-detail')
 })
 

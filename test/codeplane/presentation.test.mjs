@@ -207,7 +207,7 @@ test('presentation pairs periods, costs and operational metrics without repeated
     'Today',
     'Total',
     '实时速率',
-    'TET CodePlane 来源',
+    '分组',
     '5h',
     '7d',
     '示例分组 · 并发',
@@ -220,6 +220,27 @@ test('presentation pairs periods, costs and operational metrics without repeated
   expect(shown.windows[7].runsOutAt).toBe(soon)
   expect(shown.windows[7].runsOut).toBe(1)
   expect(presentCodePlaneUsage(normal, null)).toBe(normal)
+})
+
+test('group overview lists sorted, distinguishable names instead of a group count', () => {
+  for (const names of [
+    ['海能发', '智能体开发'],
+    ['共享', '共享'],
+  ]) {
+    const original = { windows: [{ name: 'Today', display: '1.00 USD', aside: true }] }
+    const shown = presentCodePlaneUsage(original, {
+      groups: [
+        { id: 8, name: names[1], accounts: [] },
+        { id: 7, name: names[0], accounts: [] },
+      ],
+    })
+    expect(shown.windows[1]).toEqual({
+      name: '分组',
+      display: names[0] === names[1] ? '共享 #7、共享 #8' : '海能发、智能体开发',
+      aside: true,
+    })
+    expect(original.windows).toHaveLength(1)
+  }
 })
 
 test('real key limits stay distinct and visible ahead of display-only group periods', () => {
