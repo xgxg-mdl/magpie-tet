@@ -1,0 +1,4 @@
+bun run check:local-materials
+bun run lint-staged
+bun run check
+bun run test
