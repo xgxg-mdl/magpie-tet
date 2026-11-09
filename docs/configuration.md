@@ -40,7 +40,7 @@ TET CodePlane 账号登录会随现有用量刷新读取当前账号可见的全
 
 CodePlane 查询失败或超时时显示辅助状态，不隐藏正常的钱包和消费。过期或缺失的共享读数显示状态，不能按零用量理解。周期命名、宿主汇总及历史曲线的边界见[架构说明](architecture.md#宿主展示约束)。
 
-## 插件选项
+## 顶层选项
 
 供应商设置中的 **Show traffic statistics** 控制流量统计显示，无需修改配置文件。
 
@@ -56,7 +56,66 @@ magpie plugin options 'github:xgxg-mdl/magpie-tet' '{"queryTimeoutMs":10000}'
 magpie plugin options 'github:xgxg-mdl/magpie-tet'
 ```
 
-配置示例：
+| 选项              | 默认值             | 约束                                                |
+| ----------------- | ------------------ | --------------------------------------------------- |
+| `queryTimeoutMs`  | `15000`            | 1000–60000 毫秒，仅限制查询，不限制生成时长         |
+| `showTraffic`     | `true`             | 流量展示初始值；宿主保存的供应商开关优先            |
+| `excludeModels`   | `[]`               | 按真实模型 ID 隐藏模型                              |
+| `defaultProtocol` | `openai-responses` | 模型缺少已知协议时的默认协议                        |
+| `modelOverrides`  | `{}`               | 覆盖已有模型的名称、容量、能力和推理档位            |
+| `baseURL`         | 未设置             | 账号未保存网关地址时使用的回退地址                  |
+| `modelLimits`     | `{}`               | 按模型 ID 设置容量；`modelOverrides[id].limit` 优先 |
+
+## 模型覆盖
+
+`modelOverrides` 按真实模型 ID 索引，各模型只填写需要覆盖的字段；未填写的字段保留宿主信息或使用保守默认。
+
+覆盖不会创建目录中不存在的模型。插件不按模型品牌、版本和名称中的模态关键词过滤。容量、协议和档位示例只演示格式，应按服务提供的信息填写。
+
+| 字段              | 取值与含义                                                    |
+| ----------------- | ------------------------------------------------------------- |
+| `name`            | 非空展示名称，不改变真实模型 ID                               |
+| `protocol`        | 下表列出的调用协议                                            |
+| `limit`           | Token 容量对象，整体覆盖宿主容量                              |
+| `temperature`     | 布尔值，声明是否支持温度参数，不是温度数值                    |
+| `reasoning`       | 布尔值，声明是否启用推理能力                                  |
+| `toolCall`        | 布尔值，声明是否支持工具调用                                  |
+| `reasoningLevels` | 档位数组：`none`、`minimal`、`low`、`medium`、`high`、`xhigh` |
+| `modalities`      | 按 `input`、`output` 分别指定模态数组                         |
+| `imageInput`      | 图片输入布尔声明；`modalities.input` 优先                     |
+
+### 调用协议
+
+模型协议依次使用 `modelOverrides[id].protocol`、宿主已有的已知协议、`defaultProtocol`。默认值是 Responses。目录没有可靠的协议字段时，需要按服务提供的信息配置，不能根据模型名称推断。
+
+| `protocol`             | 调用接口                                                             |
+| ---------------------- | -------------------------------------------------------------------- |
+| `openai-responses`     | `/responses`、`/responses/compact`                                   |
+| `openai-chat`          | `/chat/completions`                                                  |
+| `anthropic-messages`   | `/messages`                                                          |
+| `google-generative-ai` | `/models/<id>:generateContent`、`/models/<id>:streamGenerateContent` |
+
+路径相对于账号的网关 API 地址；Gemini 若使用 `/v1beta` 等前缀，登录时填写完整 API 地址。协议改变不会自动猜测或替换网关前缀。各账号使用自己的地址与 Key，包级协议及模型覆盖配置由这些账号共用。不同账号需要为同名模型选择不同协议时，当前配置尚不支持账号级覆盖。
+
+生成失败时不会自动更换模型或协议重试。配置某个协议并不表示服务支持它，实际验证范围见[实测记录](capabilities.md)。
+
+### 容量
+
+容量可通过 `modelOverrides[id].limit` 或 `modelLimits[id]` 设置，前者优先，其中 `id` 为真实模型 ID。`modelLimits` 示例为 `{ "your-model-id": { "context": 200000, "output": 32000 } }`，可选 `input`。容量必须为正安全整数，`output` 和可选 `input` 不得超过 `context`。
+
+### 输入输出模态
+
+`modalities.input` 和 `modalities.output` 各自接受 `text`、`image`、`audio`、`video`、`pdf` 数组。显式配置某个方向时，该数组完整替换此方向的宿主声明，空数组表示不支持这些模态；未配置的方向保留宿主信息，未知时不声明。图片、音频等输出声明还需要调用协议和宿主工作流支持，并不会自动启用专用生成端点。
+
+`imageInput` 布尔选项只覆盖图片输入，不改写其他模态；同时配置 `modalities.input` 时以后者为准。
+
+### 能力与推理档位
+
+能力取值依次使用显式覆盖、宿主已有模型信息和保守默认。没有依据时不声明采样控制、推理、工具调用或图片输入。明确配置推理档位可开启推理，但不能覆盖已有的 `reasoning: false`，此时需明确设为 `reasoning: true`；推理关闭时不提供推理档位。
+
+## 配置示例
+
+以下同时演示顶层选项和单个模型覆盖，模型 ID 与能力按实际服务填写：
 
 ```json
 {
@@ -74,60 +133,6 @@ magpie plugin options 'github:xgxg-mdl/magpie-tet'
       "toolCall": true,
       "modalities": { "input": ["text", "image"], "output": ["text"] },
       "reasoningLevels": ["low", "medium", "high"]
-    }
-  }
-}
-```
-
-| 选项              | 默认值             | 约束                                        |
-| ----------------- | ------------------ | ------------------------------------------- |
-| `queryTimeoutMs`  | `15000`            | 1000–60000 毫秒，仅限制查询，不限制生成时长 |
-| `showTraffic`     | `true`             | 流量展示初始值；宿主保存的供应商开关优先    |
-| `excludeModels`   | `[]`               | 按真实模型 ID 隐藏模型                      |
-| `defaultProtocol` | `openai-responses` | 模型缺少已知协议时的默认协议                |
-| `modelOverrides`  | `{}`               | 覆盖已有模型的名称、容量、能力和推理档位    |
-| `baseURL`         | 未设置             | 账号未保存网关地址时使用的回退地址          |
-
-`showTraffic` 是流量显示的初始值；供应商设置中保存的 **Show traffic statistics** 开关优先。
-
-覆盖不会创建目录中不存在的模型。插件不按模型品牌、版本和名称中的模态关键词过滤。容量、协议和档位示例只演示格式，应按服务提供的信息填写。
-
-### 调用协议
-
-模型协议依次使用 `modelOverrides[id].protocol`、宿主已有的已知协议、`defaultProtocol`。默认值是 Responses。目录没有可靠的协议字段时，需要按服务提供的信息配置，不能根据模型名称推断。
-
-| `protocol`             | 调用接口                                                             |
-| ---------------------- | -------------------------------------------------------------------- |
-| `openai-responses`     | `/responses`、`/responses/compact`                                   |
-| `openai-chat`          | `/chat/completions`                                                  |
-| `anthropic-messages`   | `/messages`                                                          |
-| `google-generative-ai` | `/models/<id>:generateContent`、`/models/<id>:streamGenerateContent` |
-
-路径相对于账号的网关 API 地址；Gemini 若使用 `/v1beta` 等前缀，登录时填写完整 API 地址。协议改变不会自动猜测或替换网关前缀。各账号使用自己的地址与 Key，包级协议及模型覆盖配置由这些账号共用。不同账号需要为同名模型选择不同协议时，当前配置尚不支持账号级覆盖。
-
-生成失败时不会自动更换模型或协议重试。配置某个协议并不表示服务支持它，实际验证范围见[实测记录](capabilities.md)。
-
-### 输入输出模态
-
-`modalities.input` 和 `modalities.output` 各自接受 `text`、`image`、`audio`、`video`、`pdf` 数组。显式配置某个方向时，该数组完整替换此方向的宿主声明，空数组表示不支持这些模态；未配置的方向保留宿主信息，未知时不声明。图片、音频等输出声明还需要调用协议和宿主工作流支持，并不会自动启用专用生成端点。
-
-`imageInput` 布尔选项只覆盖图片输入，不改写其他模态；同时配置 `modalities.input` 时以后者为准。
-
-容量可通过 `modelOverrides[id].limit` 或 `modelLimits[id]` 设置，前者优先，其中 `id` 为真实模型 ID。`modelLimits` 示例为 `{ "your-model-id": { "context": 200000, "output": 32000 } }`，可选 `input`。容量必须为正安全整数，`output` 和可选 `input` 不得超过 `context`。
-
-能力取值依次使用显式覆盖、宿主已有模型信息和保守默认。没有依据时不声明采样控制、推理、工具调用或图片输入。明确配置推理档位可开启推理，但不能覆盖已有的 `reasoning: false`，此时需明确设为 `reasoning: true`；推理关闭时不提供推理档位。
-
-## 模型配置示例
-
-启用模型的工具调用与图片输入：
-
-```json
-{
-  "modelOverrides": {
-    "gpt-6-luna": {
-      "temperature": false,
-      "toolCall": true,
-      "imageInput": true
     }
   }
 }

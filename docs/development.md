@@ -9,7 +9,7 @@ proto install
 bun install --frozen-lockfile
 ```
 
-源码使用 TypeScript，无运行时依赖。模块职责见[架构说明](architecture.md)，用户操作见[登录与配置](configuration.md)。
+源码使用 TypeScript，无运行时依赖。模块职责见[架构说明](architecture.md)，用户操作见[登录与配置](configuration.md)，版本发布与 CHANGELOG 规则见[发布指南](releasing.md)。
 
 ## 常规验证
 
@@ -40,7 +40,7 @@ Husky 的 `pre-commit` 先执行 `check:local-materials`，阻止已跟踪或强
 
 模块测试与实现放在同模块的 `__tests__/`；跨模块钩子与 CLI 验证放在 `test/integration/`，工具约定测试放在 `test/tooling/`。跨模块合成数据放在 `test/fixtures/`，断言和 Fetch mock 放在 `test/support/`。生产类型检查排除测试目录；测试配置将它们单独纳入。
 
-常规测试使用合成上游，不访问真实服务。提交钩子不执行发布包检查；测试 CI 在常规检查和测试后执行 `check:release`。发布包检查将实际交付归档解到临时目录，验证入口后清理，不再使用 npm/Bun 打包流程。它不代表真实服务或桌面安装已经验证。
+常规测试使用合成上游，不访问真实服务。离线与宿主模拟覆盖数据映射、认证作用域、会话恢复和协议传递；真实服务结果按日期和条件记录在[能力记录](capabilities.md)，两者不能相互替代。提交钩子不执行发布包检查；测试 CI 在常规检查和测试后执行 `check:release`。发布包检查将实际交付归档解到临时目录，验证入口后清理，不再使用 npm/Bun 打包流程。它不代表真实服务或桌面安装已经验证。
 
 ## 类型与构建
 
@@ -91,20 +91,6 @@ bun run test:relay --generate --model your-model-id --tools --structured
 
 正式入口不覆盖图片、Compact、采样控制和服务端存储。工具回传使用显式历史，不依赖 `previous_response_id`。真实服务结果及未验证范围见[服务能力](capabilities.md)。诊断只保留安全分类、状态码和经过校验的重试时间。
 
-## GitHub 发布
-
-发布由 `.github/workflows/release.yml` 在推送 `vX.Y.Z` 源码标签后触发，标签必须与 `package.json.version` 完全一致，只接受稳定的三段版本号。维护顺序为：
-
-1. 更新版本与 `CHANGELOG.md`，完成审查和常规验证，将源码提交推送到 `main`。
-2. 在该源码提交上创建并推送 `vX.Y.Z` 标签。
-3. 确认发布工作流完成后，核对 GitHub Release、构建包及清单中的 `gitHead`，再验证源码安装和入口加载。
-
-工作流执行冻结安装、格式检查、`check`、全量测试及固定宿主沙箱。`check` 只构建一次，`release:prepare` 从已有构建创建 `.release/package/` 和 `.release/TET-vX.Y.Z.tar.gz`，并将更新记录对应版本提取到 `.release/notes.md`。归档时间固定，同内容重跑产生相同字节。随后验证源码入口和归档入口，使用 GitHub CLI 创建正式 Release、上传构建包并标为 Latest；不生成产物提交或产物分支。
-
-每版只有一个 `vX.Y.Z` 源码标签，同名 GitHub Release 提供说明和固定版本构建包。工作流在 Release 已存在时验证源码 SHA 并下载附件逐字节比较，不覆盖已有内容；相同版本、源码和产物可安全重跑。若上传中断留下草稿，先排查并删除未完成草稿，再重跑工作流。发布身份需要仓库 `contents: write` 权限。
-
-默认安装地址跟随 `main`，因此主分支只合入可供用户使用的修改；开发中的改动在独立分支审查。Magpie 根据仓库提交变化识别更新，不会自动选择最新 Release 的附件。固定版本使用 `#vX.Y.Z`，安装地址见 [README](../README.md#安装与更新)。
-
 ## JSDoc 规范
 
 生产源码的导出函数、类型、常量和业务字段使用中文 JSDoc。说明契约和限制，不描述开发过程，不重复 TypeScript 类型。
@@ -121,9 +107,7 @@ bun run test:relay --generate --model your-model-id --tools --structured
 - [Magpie 插件开发规范](https://usemagpie.ai/docs/zh/plugins)：核对宿主接口，结合目标宿主版本验证。
 - [Magpie 社区插件](https://github.com/magpie-community/plugins)：参考实现思路，不作为 TET 服务能力的依据。
 
-## 文档与本地材料
-
-文档各自维护一个主题：README 为使用入口，[配置说明](configuration.md)记录操作与选项，[架构说明](architecture.md)记录模块及运行约束，[领域术语](../GLOSSARY.md)统一含义，[能力记录](capabilities.md)保留带日期的实测证据，[更新记录](../CHANGELOG.md)记录版本变化。
+## 本地材料
 
 本机环境、凭据、探索脚本和报告保留在 `docs/local/`。`pre-commit` 和 `check` 均通过 `check:local-materials` 调用 `scripts/checks/local-materials.mjs`，验证 Git 与 Prettier 的整目录忽略规则生效，并拒绝索引中已有的跟踪或强制暂存文件；包白名单校验阻止本地材料进入发布包。检查不读取本地材料内容，也不要求 CI 存在该目录。
 

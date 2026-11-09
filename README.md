@@ -52,4 +52,4 @@ bun run check
 bun test
 ```
 
-开发、验证与发布见[开发与验证](https://github.com/xgxg-mdl/magpie-tet/blob/main/docs/development.md)，模块职责见[架构说明](https://github.com/xgxg-mdl/magpie-tet/blob/main/docs/architecture.md)，数据归属见[领域术语](https://github.com/xgxg-mdl/magpie-tet/blob/main/GLOSSARY.md)。
+开发环境和验证命令见[开发与验证](https://github.com/xgxg-mdl/magpie-tet/blob/main/docs/development.md)，发版步骤与 CHANGELOG 规则见[发布指南](https://github.com/xgxg-mdl/magpie-tet/blob/main/docs/releasing.md)，模块职责见[架构说明](https://github.com/xgxg-mdl/magpie-tet/blob/main/docs/architecture.md)，数据归属见[领域术语](https://github.com/xgxg-mdl/magpie-tet/blob/main/GLOSSARY.md)。

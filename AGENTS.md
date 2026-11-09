@@ -3,6 +3,7 @@
 ## 文档导航
 
 - 实现或验证前阅读 `docs/development.md`，使用项目约定的工具链与检查入口。
+- 发布版本、维护 CHANGELOG 或处理发布失败前，阅读 `docs/releasing.md`，按其中步骤执行并核验结果。
 - 修改模块行为时阅读 `docs/architecture.md`；涉及账户、密钥、分组或额度语义时阅读 `GLOSSARY.md`。
 - 调整登录或配置时阅读 `docs/configuration.md`；判断服务支持范围或记录实测结论时阅读 `docs/capabilities.md`。
 - 涉及 Magpie 宿主接口或兼容性时，查阅 `docs/development.md` 的开发参考，结合目标宿主版本核对。
@@ -11,7 +12,7 @@
 ## 文档与注释
 
 - 产品和工程文档描述当前行为、接口约束及验证证据，不记录开发对话或重构过程；发布变化集中在 `CHANGELOG.md`。
-- 生产源码的导出类型、业务字段与函数使用中文 JSDoc，说明单位、范围、缺失值及调用约束；参数、返回与错误标签按实际契约填写，不重复 TypeScript 类型。
+- 生产源码的导出类型、业务字段与函数按 `docs/development.md` 的“JSDoc 规范”编写中文契约说明。
 
 ## 提交规范
 
