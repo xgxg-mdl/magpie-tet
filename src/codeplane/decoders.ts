@@ -96,13 +96,21 @@ export function decodeQuotaReadings(
 }
 
 /**
- * 解析分组并发快照，不将缺失或无效上限解释为无限并发。
+ * 解析分组并发快照，保留明确的零上限，不推断其原因或解释为无限并发。
  * @param raw 未校验并发对象；undefined 表示未提供。
  * @returns 可用、缺失或不可用的并发领域状态。
  */
 export function decodeCapacity(raw: unknown): CapacityReading {
   if (raw === undefined) return { kind: 'missing' }
-  if (!record(raw) || !finite(raw.used) || !Number.isSafeInteger(raw.used) || raw.used < 0 || !positiveId(raw.max))
+  if (
+    !record(raw) ||
+    !finite(raw.used) ||
+    !Number.isSafeInteger(raw.used) ||
+    raw.used < 0 ||
+    !finite(raw.max) ||
+    !Number.isSafeInteger(raw.max) ||
+    raw.max < 0
+  )
     return unavailable('missing')
   return { kind: 'available', used: raw.used, limit: raw.max }
 }

@@ -10,12 +10,18 @@ const usage = { fiveHour: { utilization: 0, resetsAt: soon }, sevenDay: { utiliz
 test('capacity preserves zero, full and over-capacity snapshots without fabricating missing limits', () => {
   for (const used of [0, 2, 10, 12])
     expect(decodeCapacity({ used, max: 10 })).toEqual({ kind: 'available', used, limit: 10 })
+  for (const used of [0, 2]) expect(decodeCapacity({ used, max: 0 })).toEqual({ kind: 'available', used, limit: 0 })
   expect(decodeCapacity(undefined)).toEqual({ kind: 'missing' })
   for (const value of [
     null,
     {},
     { used: -1, max: 10 },
-    { used: 0, max: 0 },
+    { used: 0, max: -1 },
+    { used: 0 },
+    { used: 0, max: null },
+    { used: 0, max: '0' },
+    { used: 0, max: 0.5 },
+    { used: 0, max: Number.MAX_SAFE_INTEGER + 1 },
     { used: '2', max: 10 },
     { used: 1.5, max: 10 },
   ])

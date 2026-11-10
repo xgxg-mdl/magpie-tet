@@ -47,7 +47,7 @@ export type CapacityReading =
       kind: 'available'
       /** 当前并发占用的非负安全整数，允许超过上限。 */
       used: number
-      /** 并发上限的正安全整数。 */
+      /** 服务端返回的并发上限，非负安全整数；零值不推断为无限或额度耗尽。 */
       limit: number
     }
   | {

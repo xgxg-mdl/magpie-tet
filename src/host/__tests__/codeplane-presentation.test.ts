@@ -42,7 +42,9 @@ test('decoder failures become independent native status windows without routing 
   })
   const { windows } = presentCodePlaneUsage(
     { windows: [] },
-    { groups: [{ ...group(7, 'Shared', [account(5, '', decoded)]), capacity: decodeCapacity({ used: 0, max: 0 }) }] },
+    {
+      groups: [{ ...group(7, 'Shared', [account(5, '', decoded)]), capacity: decodeCapacity({ used: 0, max: null }) }],
+    },
   )
   expect(windows.slice(0, 2)).toEqual([
     { name: '5 hours', display: '部分数据暂不可用', aside: true },
@@ -50,6 +52,22 @@ test('decoder failures become independent native status windows without routing 
   ])
   expect(windows[2]).toEqual({ name: '并发', display: '暂无数据', aside: true })
   expect(windows[3]).toEqual({ name: '重置次数', display: '0 次', aside: true })
+})
+
+test('zero capacity remains a text snapshot regardless of period availability', () => {
+  for (const used of [0, 2]) {
+    for (const accounts of [[account()], []]) {
+      const { windows } = presentCodePlaneUsage(
+        { windows: [] },
+        { groups: [{ ...group(7, 'Shared', accounts), capacity: decodeCapacity({ used, max: 0 }) }] },
+      )
+      expect(windows.find(window => window.name === '并发')).toEqual({
+        name: '并发',
+        display: used + ' / 0',
+        aside: true,
+      })
+    }
+  }
 })
 
 test('unavailable domain reasons are translated without inspecting external response fields', () => {
