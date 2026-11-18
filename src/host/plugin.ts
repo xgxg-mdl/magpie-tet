@@ -2,7 +2,7 @@ import { NAME, PROVIDER, settings, apiBase } from '../config/index.ts'
 import { decodeAuth, decodeLogin, encodeAuth } from '../auth/storage.ts'
 import { createQueries } from '../gateway/client.ts'
 import { forward } from '../gateway/forwarding.ts'
-import { loadCatalog } from '../gateway/models.ts'
+import { loadCatalogWithReasoning } from '../gateway/models.ts'
 import { discoverModels, PROTOCOLS } from './model-presentation.ts'
 import { parseUsage } from '../gateway/usage.ts'
 import { presentGatewayUsage } from './gateway-presentation.ts'
@@ -207,11 +207,11 @@ export const TetPlugin = async (input: HostInput = {}, options: unknown = {}) =>
     provider: {
       id: PROVIDER,
       /**
-       * 查询当前账号模型目录并映射为宿主模型，不进行生成请求或能力探测。
+       * 查询当前账号模型目录与声明档位并映射为宿主模型，不发送生成请求。
        * @param provider 宿主已有模型元数据快照。
        * @param context 当前账号的认证上下文。
        * @returns 无认证时为空目录，否则返回合并配置后的有效模型。
-       * @throws 认证、目录查询或分页校验失败时拒绝，交由宿主保留已有缓存并展示错误。
+       * @throws 认证、普通目录查询或分页校验失败时拒绝，交由宿主保留已有缓存并展示错误。
        */
       async models(provider, { auth } = {}) {
         if (!auth) return {}
@@ -219,7 +219,7 @@ export const TetPlugin = async (input: HostInput = {}, options: unknown = {}) =>
         const account = decodeAuth(auth, configured.baseURL)
         const baseURL = account.gateway.baseURL
         return discoverModels(
-          await loadCatalog(path => query(path, account.gateway, opts.queryTimeoutMs), baseURL),
+          await loadCatalogWithReasoning(path => query(path, account.gateway, opts.queryTimeoutMs), baseURL),
           provider.models ?? {},
           { ...opts, baseURL },
         )

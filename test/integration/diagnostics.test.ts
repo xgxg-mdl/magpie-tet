@@ -28,6 +28,7 @@ function upstream(generate?: (body: Record<string, unknown>, calls: number) => R
   let calls = 0
   globalThis.fetch = mockFetch(async (url, init) => {
     if (String(url).endsWith('/models')) return Response.json({ data: [{ id: model }] })
+    if (String(url).endsWith('/models?client_version=0.169.1')) return Response.json({ models: [] })
     if (String(url).endsWith('/usage')) return Response.json({ isValid: true, balance: 1 })
     calls++
     const body = requestBody(init)

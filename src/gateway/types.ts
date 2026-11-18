@@ -1,4 +1,6 @@
-/** 模型目录中通过标识校验的基础信息，不包含能力或容量推断。 */
+import type { ReasoningLevel } from '../protocols.ts'
+
+/** 网关目录中经过校验的模型信息，不从名称推断能力或容量。 */
 export interface CatalogModel {
   /** 服务端原始模型标识；保留大小写及内容，调用时按此值寻址。 */
   id: string
@@ -6,6 +8,8 @@ export interface CatalogModel {
   displayName?: string
   /** 服务端名称，供展示名称缺失时回退。 */
   name?: string
+  /** 网关声明的档位；缺失表示未知，仅有 none 表示由宿主补齐档位。 */
+  reasoningLevels?: ReasoningLevel[]
 }
 
 /** 单页模型目录及服务端提供的后续页线索。 */

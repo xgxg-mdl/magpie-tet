@@ -9,8 +9,8 @@ export const MODALITIES = ['text', 'image', 'audio', 'video', 'pdf'] as const
 /** 一种可声明的模型输入或输出模态。 */
 export type Modality = (typeof MODALITIES)[number]
 /** 可传递给宿主 SDK 的推理档位名称，不代表目录模型均支持这些档位。 */
-export const REASONING_LEVELS = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh'] as const
-/** 显式模型配置可声明的单个推理档位。 */
+export const REASONING_LEVELS = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
+/** 模型可声明的单个推理档位。 */
 export type ReasoningLevel = (typeof REASONING_LEVELS)[number]
 
 /**

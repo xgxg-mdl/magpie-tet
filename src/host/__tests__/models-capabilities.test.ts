@@ -14,11 +14,11 @@ const discover = (existing: ModelMetadata = {}, override: unknown = {}) =>
     )[id],
   )
 
-test('catalog names do not advertise unverified optional capabilities', () => {
+test('missing reasoning metadata delegates levels to the host without inferring other capabilities', () => {
   const model = discover()
   expect(model.capabilities).toMatchObject({
     temperature: false,
-    reasoning: false,
+    reasoning: true,
     toolcall: false,
     attachment: false,
     input: {},

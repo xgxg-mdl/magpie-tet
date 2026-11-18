@@ -38,6 +38,7 @@ test('custom API base applies to config, paginated models, usage and forwarding'
   expect(visited).toEqual([
     baseURL + '/models',
     baseURL + '/models?page=2',
+    baseURL + '/models?client_version=0.169.1',
     baseURL + '/usage',
     baseURL + '/responses/compact',
   ])
@@ -102,6 +103,80 @@ test('catalog failure is visible to host rather than reported as successful refr
   })
   await expect(plugin.provider.models({ models: {} }, { auth })).rejects.toThrow('query failed')
   expect(await plugin.provider.models({ models: { cached: {} } })).toEqual({})
+})
+
+test('Codex catalog enriches only matching models and delegates none-only declarations to Magpie', async () => {
+  const modelIDs = ['fallback', 'explicit', 'invalid', 'unlisted', 'disabled', 'configured']
+  globalThis.fetch = mockFetch(async (url, init) => {
+    expect(new Headers(init.headers).get('authorization')).toBe('Bearer ' + auth.key)
+    if (url === BASE + '/models') return Response.json({ data: modelIDs.map(id => ({ id })) })
+    expect(url).toBe(BASE + '/models?client_version=0.169.1')
+    const row = (slug: string, levels: string[]) => ({
+      slug,
+      supported_reasoning_levels: levels.map(effort => ({ effort })),
+    })
+    return Response.json({
+      models: [
+        row('fallback', ['none']),
+        row('explicit', ['none', 'high', 'high', 'max', 'unknown']),
+        row('invalid', ['none', 'unknown']),
+        row('Unlisted', ['none']),
+        row('disabled', ['high']),
+        row('configured', ['high']),
+        row('metadata-only', ['high']),
+      ],
+    })
+  })
+  const plugin = await TetPlugin(
+    {},
+    {
+      modelOverrides: { disabled: { reasoning: false }, configured: { reasoningLevels: ['max'] } },
+    },
+  )
+  const inherited = { capabilities: { reasoning: true }, variants: { low: { reasoningEffort: 'low' } } }
+  const models = await plugin.provider.models(
+    {
+      models: {
+        fallback: inherited,
+        explicit: { capabilities: { reasoning: false } },
+        invalid: inherited,
+        unlisted: inherited,
+      },
+    },
+    { auth },
+  )
+  expect(Object.keys(models)).toEqual(modelIDs)
+  const reasoning = (id: string) => {
+    const model = present(models[id])
+    return [model.capabilities.reasoning, model.variants]
+  }
+  expect(reasoning('fallback')).toEqual([true, {}])
+  expect(reasoning('explicit')).toEqual([
+    true,
+    {
+      none: { reasoningEffort: 'none' },
+      high: { reasoningEffort: 'high' },
+      max: { reasoningEffort: 'max' },
+    },
+  ])
+  expect(reasoning('invalid')).toEqual([true, inherited.variants])
+  expect(reasoning('unlisted')).toEqual([true, inherited.variants])
+  expect(reasoning('disabled')).toEqual([false, {}])
+  expect(reasoning('configured')).toEqual([true, { max: { reasoningEffort: 'max' } }])
+})
+
+test('an unavailable Codex catalog does not erase inherited reasoning metadata', async () => {
+  globalThis.fetch = mockFetch(async url => {
+    if (url === BASE + '/models') return Response.json({ data: [{ id: 'gpt-6.1-sol' }, { id: 'gpt-6.2-sol' }] })
+    throw new DOMException('synthetic timeout', 'TimeoutError')
+  })
+  const plugin = await TetPlugin()
+  const inherited = { capabilities: { reasoning: true }, variants: { low: { reasoningEffort: 'low' } } }
+  const models = await plugin.provider.models({ models: { 'gpt-6.1-sol': inherited } }, { auth })
+  expect(present(models['gpt-6.1-sol']).capabilities.reasoning).toBe(true)
+  expect(present(models['gpt-6.1-sol']).variants).toEqual(inherited.variants)
+  expect(present(models['gpt-6.2-sol']).capabilities.reasoning).toBe(true)
+  expect(present(models['gpt-6.2-sol']).variants).toEqual({})
 })
 
 test('showTraffic toggle reads live host state without dropping structured model options', async () => {

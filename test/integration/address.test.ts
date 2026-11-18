@@ -35,6 +35,7 @@ test('saved account roots normalize across catalog, pagination, usage and forwar
   expect(visited).toEqual([
     'https://relay.example/v1/models',
     'https://relay.example/v1/models?page=2',
+    'https://relay.example/v1/models?client_version=0.169.1',
     'https://relay.example/v1/usage',
     'https://relay.example/v1/responses',
   ])

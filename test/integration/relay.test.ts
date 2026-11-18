@@ -25,6 +25,7 @@ function upstream(generate?: (body: Record<string, unknown>, init: RequestInit) 
     requests.push({ url: String(url), init })
     expect(new Headers(init.headers).get('authorization')).toBe('Bearer ' + key)
     if (url === baseURL + '/models') return Response.json({ data: [{ id: model }, { id: 'gpt-image-2' }] })
+    if (url === baseURL + '/models?client_version=0.169.1') return Response.json({ models: [] })
     if (url === baseURL + '/usage') return Response.json({ isValid: true, balance: 10 })
     if (url === baseURL + '/responses' && generate) return generate(requestBody(init), init)
     throw new Error('Unexpected synthetic endpoint')
@@ -44,7 +45,11 @@ test('read-only probe exercises plugin hooks and never sends generation requests
     usage: { ok: true, windows: 0 },
     generation: 'skipped',
   })
-  expect(requests.map(request => request.url)).toEqual([baseURL + '/models', baseURL + '/usage'])
+  expect(requests.map(request => request.url)).toEqual([
+    baseURL + '/models',
+    baseURL + '/models?client_version=0.169.1',
+    baseURL + '/usage',
+  ])
 })
 
 test('missing authentication, implicit generation and unapproved HTTP fail before network access', async () => {
@@ -67,7 +72,7 @@ test('HTTP requires a separate explicit opt-in', async () => {
     return Response.json(String(url).endsWith('/models') ? { data: [{ id: model }] } : { isValid: true, balance: 10 })
   })
   await probeRelay({ ...options, baseURL: 'http://test-relay.example/v1', allowHTTP: true })
-  expect(requests.length).toBe(2)
+  expect(requests.length).toBe(3)
 })
 
 test('model discovery and usage failures never count as a successful read-only probe', async () => {
@@ -130,7 +135,7 @@ test('unknown explicit models cannot trigger generation', async () => {
   await expect(probeRelay({ ...options, generate: true, model: 'gpt-6-missing' })).rejects.toThrow(
     'plugin-supported catalog',
   )
-  expect(requests.length).toBe(2)
+  expect(requests.length).toBe(3)
 })
 
 test('HTTP 200 with a non-Responses body does not pass or trigger a second request', async () => {

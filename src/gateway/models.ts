@@ -1,6 +1,9 @@
 import { apiBase } from '../config/address.ts'
+import { REASONING_LEVELS, type ReasoningLevel } from '../protocols.ts'
 import { record } from '../validation.ts'
 import type { CatalogModel, CatalogPage } from './types.ts'
+
+const CODEX_CATALOG_CLIENT_VERSION = '0.169.1'
 
 /**
  * 将单页外部目录转换为基础模型及分页线索，跳过无效模型标识。
@@ -69,4 +72,43 @@ export async function loadCatalog(read: (path: string) => Promise<unknown>, base
     } else path = null
   }
   return rows
+}
+
+/**
+ * 以普通目录为准，按精确模型标识合并 Codex 目录的可选档位。
+ * @param read 当前账号的有界网关查询函数。
+ * @param baseURL 当前账号的网关 API 地址。
+ * @returns 普通目录及有效档位；辅助查询失败或无有效声明时仍返回普通目录。
+ * @throws 普通目录查询或分页校验失败时拒绝。
+ */
+export async function loadCatalogWithReasoning(
+  read: (path: string) => Promise<unknown>,
+  baseURL: string,
+): Promise<CatalogModel[]> {
+  const models = await loadCatalog(read, baseURL)
+  if (!models.length) return models
+  const payload = await read(`/models?client_version=${CODEX_CATALOG_CLIENT_VERSION}`).catch(() => undefined)
+  if (!record(payload) || !Array.isArray(payload.models)) return models
+
+  const levelsByID = new Map<string, ReasoningLevel[]>()
+  for (const row of payload.models) {
+    if (!record(row) || typeof row.slug !== 'string' || !Array.isArray(row.supported_reasoning_levels)) continue
+    const levels = new Set<ReasoningLevel>()
+    for (const entry of row.supported_reasoning_levels) {
+      const level = record(entry) && REASONING_LEVELS.find(value => value === entry.effort)
+      if (level) levels.add(level)
+    }
+    if (!levels.size) continue
+    if (
+      levels.size === 1 &&
+      levels.has('none') &&
+      !row.supported_reasoning_levels.every(entry => record(entry) && entry.effort === 'none')
+    )
+      continue
+    levelsByID.set(row.slug, [...levels])
+  }
+  return models.map(model => {
+    const reasoningLevels = levelsByID.get(model.id)
+    return reasoningLevels ? { ...model, reasoningLevels } : model
+  })
 }

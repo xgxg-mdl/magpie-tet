@@ -24,7 +24,8 @@ function modelProtocol(existing: ModelMetadata, override: ModelOverride, options
 /**
  * 将已解析目录与宿主元数据、显式配置合并为可注册模型。
  *
- * 目录只说明模型存在；容量、能力和 SDK 参数来自宿主元数据或显式配置。
+ * 网关档位优先于宿主元数据；仅声明 none 或双方都缺少推理信息时，由宿主匹配档位。
+ * 显式配置可覆盖两者。
  * 未知模态不补成文本；禁用推理时清除推理变体，不发送能力探测请求。
  *
  * @param models 已校验的账号模型目录。
@@ -55,8 +56,10 @@ export function discoverModels(
     const input = modalities('input')
     const output = modalities('output')
     if (override.imageInput !== undefined && override.modalities?.input === undefined) input.image = override.imageInput
-    // 目录名称不是能力证据；显式档位可开启推理，已有禁用声明仍优先。
-    const reasoning = override.reasoning ?? capabilities.reasoning ?? Boolean(override.reasoningLevels?.length)
+    const gatewayLevels = model.reasoningLevels
+    const reasoning = override.reasoning ?? (gatewayLevels ? true : (capabilities.reasoning ?? true))
+    const levels =
+      override.reasoningLevels ?? (gatewayLevels?.length === 1 && gatewayLevels[0] === 'none' ? [] : gatewayLevels)
     entries.push([
       model.id,
       {
@@ -81,8 +84,8 @@ export function discoverModels(
         },
         variants: !reasoning
           ? {}
-          : override.reasoningLevels
-            ? Object.fromEntries(override.reasoningLevels.map(level => [level, { reasoningEffort: level }]))
+          : levels
+            ? Object.fromEntries(levels.map(level => [level, { reasoningEffort: level }]))
             : (existing.variants ?? {}),
       },
     ])
